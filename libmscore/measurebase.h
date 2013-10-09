@@ -19,21 +19,27 @@
 */
 
 #include "element.h"
+#include "layoutbreak.h"
 
 namespace Ms {
 
 class Score;
 class System;
 class Measure;
-class LayoutBreak;
 
 //---------------------------------------------------------
 //   @@ MeasureBase
 ///   Virtual base class for Measure, HBox and VBox
+//
+//    @P lineBreak   bool true if a system break is positioned on this measure
+//    @P pageBreak   bool true if a page break is positioned on this measure
 //---------------------------------------------------------
 
 class MeasureBase : public Element {
       Q_OBJECT
+
+      Q_PROPERTY(bool     lineBreak   READ lineBreak   WRITE undoSetLineBreak)
+      Q_PROPERTY(bool     pageBreak   READ pageBreak   WRITE undoSetPageBreak)
 
       MeasureBase* _next;
       MeasureBase* _prev;
@@ -56,12 +62,15 @@ class MeasureBase : public Element {
       virtual void setScore(Score* s);
 
       MeasureBase* next() const              { return _next;   }
+      MeasureBase* nextMM() const;
       void setNext(MeasureBase* e)           { _next = e;      }
       MeasureBase* prev() const              { return _prev;   }
       void setPrev(MeasureBase* e)           { _prev = e;      }
 
       Q_INVOKABLE Ms::Measure* nextMeasure() const;
       Q_INVOKABLE Ms::Measure* prevMeasure() const;
+      Ms::Measure* nextMeasureMM() const;
+      Ms::Measure* prevMeasureMM() const;
 
       virtual int ticks() const              { return 0;       }
       virtual void write(Xml&, int, bool) const = 0;
@@ -84,6 +93,10 @@ class MeasureBase : public Element {
       void setLineBreak(bool v)              { _lineBreak = v;    }
       void setPageBreak(bool v)              { _pageBreak = v;    }
       void setSectionBreak(LayoutBreak* v)   { _sectionBreak = v; }
+      void undoSetBreak(bool v, LayoutBreak::LayoutBreakType type);
+      void undoSetLineBreak(bool v)          {  undoSetBreak(v, LayoutBreak::LINE);}
+      void undoSetPageBreak(bool v)          {  undoSetBreak(v, LayoutBreak::PAGE);}
+      void undoSetSectionBreak(bool v)       {  undoSetBreak(v, LayoutBreak::SECTION);}
 
       virtual void moveTicks(int diff)       { setTick(tick() + diff); }
 

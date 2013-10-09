@@ -124,16 +124,13 @@
             </Note>
           </Chord>
         <Ottava id="2">
-          <subtype>0</subtype>
-          <endHookHeight>1.9</endHookHeight>
-          <endHookType>0</endHookType>
-          <beginTextPlace>left</beginTextPlace>
-          <continueTextPlace>left</continueTextPlace>
+          <subtype>8va</subtype>
           <lineWidth>0.1</lineWidth>
           <lineStyle>1</lineStyle>
           <Segment>
             <subtype>0</subtype>
             <off2 x="-3.87097" y="0"/>
+            <placement>below</placement>
             </Segment>
           <beginText>
             <style>Ottava</style>

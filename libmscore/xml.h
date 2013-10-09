@@ -37,17 +37,14 @@ class XmlReader : public QXmlStreamReader {
       int _track;
       QList<Beam*>    _beams;
       QList<Tuplet*>  _tuplets;
-      QList<ClefList*> _clefListList;      // used reading 1.2 scores
 
    public:
       XmlReader(QFile*);
-      XmlReader(const QByteArray& d);
-      XmlReader(QIODevice* d);
-      XmlReader(const QString& d);
+      XmlReader(const QByteArray& d, const QString& s = QString());
+      XmlReader(QIODevice* d, const QString& s = QString());
+      XmlReader(const QString& d, const QString& s = QString());
 
       void unknown() const;
-
-//      void error(int, int);
 
       // attribute helper routines:
       QString attribute(const char* s) const { return attributes().value(s).toString(); }
@@ -83,7 +80,6 @@ class XmlReader : public QXmlStreamReader {
 
       QList<Tuplet*>& tuplets()        { return _tuplets; }
       QList<Beam*>& beams()            { return _beams; }
-      QList<ClefList*>& clefListList() { return _clefListList; }
       };
 
 //---------------------------------------------------------

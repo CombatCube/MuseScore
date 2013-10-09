@@ -79,6 +79,7 @@ void Glissando::layout()
       Note* anchor1 = static_cast<Chord*>(cr)->upNote();
 
       setPos(0.0, 0.0);
+      adjustReadPos();
 
       QPointF cp1    = anchor1->pagePos();
       QPointF cp2    = anchor2->pagePos();
@@ -107,11 +108,15 @@ void Glissando::layout()
 
       // on TAB's, adjust lower end point from string line height to base of note height (= ca. half line spacing)
       if (chord->staff()->isTabStaff()) {
-            qreal yOff = chord->staff()->lineDistance() * 0.5 * _spatium;
-            if (anchor1->pitch() > anchor2->pitch())  // descending glissando:
-                  y2 += yOff;                               // move ending point to base of note
-            else                                      // ascending glissando:
+            qreal yOff = chord->staff()->lineDistance() * 0.3 * _spatium;
+            if (anchor1->pitch() > anchor2->pitch()) {  // descending glissando:
+                  y2 += yOff;
+                  y1 -= yOff;
+                  }                                     // move ending point to base of note
+            else {                                      // ascending glissando:
                   y1 += yOff;                               // move starting point to base of note
+                  y2 -= yOff;
+                  }
             }
 
       // shorten line to avoid end note ledger line

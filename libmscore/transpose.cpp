@@ -211,7 +211,7 @@ int transposeTpcDiatonicByKey(int tpc, int steps, int key, bool keepAlteredDegre
 
 void Score::cmdTransposeStaff(int staffIdx, Interval interval, bool useDoubleSharpsFlats)
       {
-      if (staff(staffIdx)->staffType()->group() == PERCUSSION_STAFF)
+      if (staff(staffIdx)->staffType()->group() == PERCUSSION_STAFF_GROUP)
             return;
       int startTrack = staffIdx * VOICES;
       int endTrack   = startTrack + VOICES;
@@ -299,7 +299,7 @@ void Score::transpose(int mode, TransposeDirection direction, int transposeKey,
 
       if (_selection.state() == SEL_LIST) {
             foreach(Element* e, _selection.elements()) {
-                  if (e->staff()->staffType()->group() == PERCUSSION_STAFF)
+                  if (e->staff()->staffType()->group() == PERCUSSION_STAFF_GROUP)
                         continue;
                   if (e->type() == Element::NOTE) {
                         Note* note = static_cast<Note*>(e);
@@ -348,18 +348,26 @@ void Score::transpose(int mode, TransposeDirection direction, int transposeKey,
 
       for (Segment* segment = _selection.startSegment(); segment && segment != _selection.endSegment(); segment = segment->next1()) {
             for (int st = startTrack; st < endTrack; ++st) {
-                  if (staff(st/VOICES)->staffType()->group() == PERCUSSION_STAFF)
+                  if (staff(st/VOICES)->staffType()->group() == PERCUSSION_STAFF_GROUP)
                         continue;
                   Element* e = segment->element(st);
                   if (!e || e->type() != Element::CHORD)
                         continue;
                   Chord* chord = static_cast<Chord*>(e);
                   QList<Note*> nl = chord->notes();
-                  foreach (Note* n, nl) {
+                  for (Note* n : nl) {
                         if (mode == TRANSPOSE_DIATONICALLY)
                               n->transposeDiatonic(transposeInterval, trKeys, useDoubleSharpsFlats);
                         else
                               transpose(n, interval, useDoubleSharpsFlats);
+                        }
+                  for (Chord* g : chord->graceNotes()) {
+                        for (Note* n : g->notes()) {
+                              if (mode == TRANSPOSE_DIATONICALLY)
+                                    n->transposeDiatonic(transposeInterval, trKeys, useDoubleSharpsFlats);
+                              else
+                                    transpose(n, interval, useDoubleSharpsFlats);
+                              }
                         }
                   }
             if (transposeChordNames) {
@@ -399,7 +407,7 @@ void Score::transpose(int mode, TransposeDirection direction, int transposeKey,
 void Score::transposeKeys(int staffStart, int staffEnd, int tickStart, int tickEnd, const Interval& interval)
       {
       for (int staffIdx = staffStart; staffIdx < staffEnd; ++staffIdx) {
-            if (staff(staffIdx)->staffType()->group() == PERCUSSION_STAFF)
+            if (staff(staffIdx)->staffType()->group() == PERCUSSION_STAFF_GROUP)
                   continue;
 
             KeyList* km = staff(staffIdx)->keymap();

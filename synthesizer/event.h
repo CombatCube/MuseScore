@@ -46,7 +46,7 @@ enum {
       ME_NOTE       = 0x1,
       ME_CHORD      = 0x2,
       ME_TICK1      = 0x3,  // metronome tick akzent
-      ME_TICK2      = 0x4   // metronome tick
+      ME_TICK2      = 0x4,  // metronome tick
       };
 
 //---------------------------------------------------------

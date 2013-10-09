@@ -110,6 +110,8 @@ void Score::updateChannel()
 static void playNote(EventMap* events, const Note* note, int channel, int pitch,
    int velo, int onTime, int offTime)
       {
+      if (!note->play())
+            return;
       velo = note->customizeVelocity(velo);
       NPlayEvent ev(ME_NOTEON, channel, pitch, velo);
       ev.setTuning(note->tuning());
@@ -125,7 +127,7 @@ static void playNote(EventMap* events, const Note* note, int channel, int pitch,
 
 static void collectNote(EventMap* events, int channel, const Note* note, int velo, int tickOffset)
       {
-      if (note->hidden() || note->tieBack())       // do not play overlapping notes
+      if (!note->play() || note->hidden() || note->tieBack())       // do not play overlapping notes
             return;
 
       int pitch = note->ppitch();
@@ -363,7 +365,7 @@ void Score::updateHairpin(Hairpin* h)
       int tick  = h->tick();
       int velo  = st->velocities().velo(tick);
       int incr  = h->veloChange();
-      int tick2 = h->tick2() - 1;
+      int tick2 = h->tick2();
 
       //
       // If velocity increase/decrease is zero, then assume

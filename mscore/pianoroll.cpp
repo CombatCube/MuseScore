@@ -52,20 +52,21 @@ PianorollEditor::PianorollEditor(QWidget* parent)
       tb->addAction(getAction("undo"));
       tb->addAction(getAction("redo"));
       tb->addSeparator();
-      tb->addAction(getAction("sound-on"));
 #ifdef HAS_MIDI
       tb->addAction(getAction("midi-on"));
 #endif
-      QAction* a = getAction("follow");
-      a->setCheckable(true);
-      a->setChecked(preferences.followSong);
-
-      tb->addAction(a);
-
       tb->addSeparator();
+
       tb->addAction(getAction("rewind"));
       tb->addAction(getAction("play"));
       tb->addSeparator();
+
+      QAction* a = getAction("follow");
+      a->setCheckable(true);
+      a->setChecked(preferences.followSong);
+      tb->addAction(a);
+      tb->addSeparator();
+
       showWave = new QAction(tr("Wave"), tb);
       showWave->setToolTip(tr("show wave display"));
       showWave->setCheckable(true);
@@ -494,6 +495,14 @@ void PianorollEditor::dataChanged(const QRectF&)
 //---------------------------------------------------------
 
 void PianorollEditor::moveCursor()
+      {
+      }
+
+//---------------------------------------------------------
+//   updateLoopCursor
+//---------------------------------------------------------
+
+void PianorollEditor::updateLoopCursors()
       {
       }
 

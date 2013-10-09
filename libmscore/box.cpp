@@ -430,6 +430,8 @@ void HBox::layout2()
 bool Box::acceptDrop(MuseScoreView*, const QPointF&, Element* e) const
       {
       int type = e->type();
+      if(e->flag(ELEMENT_ON_STAFF))
+            return false;
       switch(type) {
             case LAYOUT_BREAK:
             case TEXT:
@@ -457,15 +459,17 @@ bool Box::acceptDrop(MuseScoreView*, const QPointF&, Element* e) const
 Element* Box::drop(const DropData& data)
       {
       Element* e = data.element;
+      if(e->flag(ELEMENT_ON_STAFF))
+            return 0;
       switch(e->type()) {
             case LAYOUT_BREAK:
                   {
                   LayoutBreak* lb = static_cast<LayoutBreak*>(e);
                   if (_pageBreak || _lineBreak) {
                         if (
-                           (lb->layoutBreakType() == LAYOUT_BREAK_PAGE && _pageBreak)
-                           || (lb->layoutBreakType() == LAYOUT_BREAK_LINE && _lineBreak)
-                           || (lb->layoutBreakType() == LAYOUT_BREAK_SECTION && _sectionBreak)
+                           (lb->layoutBreakType() == LayoutBreak::PAGE && _pageBreak)
+                           || (lb->layoutBreakType() == LayoutBreak::LINE && _lineBreak)
+                           || (lb->layoutBreakType() == LayoutBreak::SECTION && _sectionBreak)
                            ) {
                               //
                               // if break already set

@@ -55,7 +55,7 @@ EditStaff::EditStaff(Staff* s, QWidget* parent)
       Score* score = part->score();
 
       // hide string data controls if instrument has no strings
-      stringDataFrame->setVisible(instrument.tablature() && instrument.tablature()->strings() > 0);
+      stringDataFrame->setVisible(instrument.stringData() && instrument.stringData()->strings() > 0);
       fillStaffTypeCombo();
       small->setChecked(staff->small());
       invisible->setChecked(staff->invisible());
@@ -85,14 +85,14 @@ void EditStaff::fillStaffTypeCombo()
       int curIdx     = 0;
       int n          = score->staffTypes().size();
       // can this instrument accept tabs or drum set?
-      bool canUseTabs = instrument.tablature() && instrument.tablature()->strings() > 0;
+      bool canUseTabs = instrument.stringData() && instrument.stringData()->strings() > 0;
       bool canUsePerc = instrument.useDrumset();
       staffType->clear();
       for (int idx = 0; idx < n; ++idx) {
             StaffType* st = score->staffType(idx);
-            if ( (canUseTabs && st->group() == TAB_STAFF)
-                        || ( canUsePerc && st->group() == PERCUSSION_STAFF)
-                        || (!canUsePerc && st->group() == PITCHED_STAFF) ) {
+            if ( (canUseTabs && st->group() == TAB_STAFF_GROUP)
+                        || ( canUsePerc && st->group() == PERCUSSION_STAFF_GROUP)
+                        || (!canUsePerc && st->group() == STANDARD_STAFF_GROUP) ) {
                   staffType->addItem(st->name(), idx);
                   if (st == staff->staffType())
                         curIdx = staffType->count() - 1;
@@ -117,6 +117,9 @@ void EditStaff::updateInstrument()
       df = nl.isEmpty() ? QTextDocumentFragment() : nl[0].name;
       longName->setHtml(df.toHtml());
 
+      if (partName->text() == instrumentName->text())    // Updates part name is no custom name has been set before
+            partName->setText(instrument.trackName());
+
       instrumentName->setText(instrument.trackName());
 
       _minPitchA = instrument.minPitchA();
@@ -128,7 +131,7 @@ void EditStaff::updateInstrument()
       minPitchP->setText(midiCodeToStr(_minPitchP));
       maxPitchP->setText(midiCodeToStr(_maxPitchP));
 
-      int numStr = instrument.tablature() ? instrument.tablature()->strings() : 0;
+      int numStr = instrument.stringData() ? instrument.stringData()->strings() : 0;
       numOfStrings->setText(QString::number(numStr));
       }
 
@@ -231,10 +234,10 @@ void EditStaff::apply()
       StaffGroup ng = st->group();                          // new staff group
       StaffGroup og = staff->staffType()->group();          // old staff group
 
-      bool updateNeeded = (ng == TAB_STAFF && og != TAB_STAFF) ||
-                          (ng != TAB_STAFF && og == TAB_STAFF) ||
-                          (ng == TAB_STAFF && og == TAB_STAFF
-                             && instrument.tablature() != part->instr()->tablature());
+      bool updateNeeded = (ng == TAB_STAFF_GROUP && og != TAB_STAFF_GROUP) ||
+                          (ng != TAB_STAFF_GROUP && og == TAB_STAFF_GROUP) ||
+                          (ng == TAB_STAFF_GROUP && og == TAB_STAFF_GROUP
+                             && instrument.stringData() != part->instr()->stringData());
 
       if (!(instrument == *part->instr()) || part->partName() != partName->text()) {
             score->undo(new ChangePart(part, instrument, partName->text()));
@@ -271,6 +274,7 @@ void EditStaff::showInstrumentDialog()
       if (si.exec()) {
             instrument = Instrument::fromTemplate(si.instrTemplate());
             updateInstrument();
+            fillStaffTypeCombo();
             }
       }
 
@@ -348,17 +352,17 @@ void EditStaff::maxPitchPClicked()
 
 void EditStaff::editStringDataClicked()
       {
-      int         frets = instrument.tablature()->frets();
-      QList<int>  stringList = instrument.tablature()->stringList();
+      int         frets = instrument.stringData()->frets();
+      QList<int>  stringList = instrument.stringData()->stringList();
 
       EditStringData* esd = new EditStringData(this, &stringList, &frets);
       if (esd->exec()) {
-            Tablature * tab = new Tablature(frets, stringList);
+            StringData* stringData = new StringData(frets, stringList);
             // detect number of strings going from 0 to !0 or vice versa
             bool redoStaffTypeCombo =
-                  (stringList.size() != 0) != (instrument.tablature()->strings() != 0);
-            instrument.setTablature(tab);
-            int numStr = tab ? tab->strings() : 0;
+                  (stringList.size() != 0) != (instrument.stringData()->strings() != 0);
+            instrument.setStringData(stringData);
+            int numStr = stringData ? stringData->strings() : 0;
             numOfStrings->setText(QString::number(numStr));
             if (redoStaffTypeCombo)
                   fillStaffTypeCombo();

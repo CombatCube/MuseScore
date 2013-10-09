@@ -3,7 +3,7 @@
 //  Linux Music Score Editor
 //  $Id: importxml.cpp 5653 2012-05-19 20:19:58Z lvinken $
 //
-//  Copyright (C) 2002-2011 Werner Schweer and others
+//  Copyright (C) 2002-2013 Werner Schweer and others
 //
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License version 2.
@@ -53,6 +53,7 @@
 #include "libmscore/element.h"
 #include "libmscore/sym.h"
 #include "libmscore/slur.h"
+#include "libmscore/tie.h"
 #include "libmscore/hairpin.h"
 #include "libmscore/tuplet.h"
 #include "libmscore/segment.h"
@@ -654,6 +655,8 @@ Score::FileError importMusicXml(Score* score, const QString& name)
 
       // open the MusicXML file
       QFile xmlFile(name);
+      if (!xmlFile.exists())
+            return Score::FILE_NOT_FOUND;
       if (!xmlFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
             qDebug("importMusicXml() could not open MusicXML file '%s'", qPrintable(name));
             MScore::lastError = QT_TRANSLATE_NOOP("file", "could not open MusicXML file\n");
@@ -680,6 +683,8 @@ Score::FileError importCompressedMusicXml(Score* score, const QString& name)
 
       // open the compressed MusicXML file
       QFile mxlFile(name);
+      if (!mxlFile.exists())
+            return Score::FILE_NOT_FOUND;
       if (!mxlFile.open(QIODevice::ReadOnly)) {
             qDebug("importCompressedMusicXml() could not open compressed MusicXML file '%s'", qPrintable(name));
             MScore::lastError = QT_TRANSLATE_NOOP("file", "could not open compressed MusicXML file\n");
@@ -766,6 +771,7 @@ static void addText(VBox*& vbx, Score* s, QString strTxt, int stl)
 
 /**
  Create Text elements for the credits read from MusicXML credit-words elements.
+ Apply simple heuristics using only default x and y to recognize the meaning of credit words
  If no credits are found, create credits from meta data.
  */
 
@@ -799,63 +805,93 @@ void MusicXml::doCredits()
                    w->vAlign.toUtf8().data(),
                    w->words.toUtf8().data());
             }
-      */
-      // apply simple heuristics using only default x and y
-      // to recognize the meaning of credit words
+       */
+
       CreditWords* crwTitle = 0;
       CreditWords* crwSubTitle = 0;
       CreditWords* crwComposer = 0;
       CreditWords* crwPoet = 0;
       CreditWords* crwCopyRight = 0;
-      // title is highest above middle of the page that is in the middle column
-      // it is done first because subtitle detection depends on the title
+
+      QMap<int, CreditWords*> creditMap;  // store credit-words sorted on y pos
+      int nWordsHeader = 0;               // number of credit-words in the header
+      int nWordsFooter = 0;               // number of credit-words in the footer
+
       for (ciCreditWords ci = credits.begin(); ci != credits.end(); ++ci) {
             CreditWords* w = *ci;
             double defx = w->defaultX;
             double defy = w->defaultY;
-            if (defy > ph2 && pw1 < defx && defx < pw2) {
-                  // found a possible title
-                  if (!crwTitle || defy > crwTitle->defaultY) crwTitle = w;
-                  }
-            }
-      // subtitle is highest above middle of the page that is
-      // in the middle column and is not the title
-      for (ciCreditWords ci = credits.begin(); ci != credits.end(); ++ci) {
-            CreditWords* w = *ci;
-            double defx = w->defaultX;
-            double defy = w->defaultY;
-            if (defy > ph2 && pw1 < defx && defx < pw2) {
-                  // found a possible subtitle
-                  if ((!crwSubTitle || defy > crwSubTitle->defaultY)
-                      && w != crwTitle)
-                        crwSubTitle = w;
-                  }
-            // composer is above middle of the page and in the right column
-            if (defy > ph2 && pw2 < defx) {
+            // composer is in the right column
+            if (pw2 < defx) {
                   // found composer
                   if (!crwComposer) crwComposer = w;
                   }
-            // poet is above middle of the page and in the left column
-            if (defy > ph2 && defx < pw1) {
+            // poet is in the left column
+            else if (defx < pw1) {
                   // found poet
                   if (!crwPoet) crwPoet = w;
                   }
-            // copyright is below middle of the page and in the middle column
-            if (defy < ph2 && pw1 < defx && defx < pw2) {
-                  // found copyright
-                  if (!crwCopyRight) crwCopyRight = w;
+            // save others (in the middle column) to be handled later
+            else {
+                  creditMap.insert(defy, w);
+                  // and count #words in header and footer
+                  if (defy > ph2)
+                        nWordsHeader++;
+                  else
+                        nWordsFooter++;
                   }
             } // end for (ciCreditWords ...
+
+      /*
+      qDebug("header %d footer %d", nWordsHeader, nWordsFooter);
+      QMap<int, CreditWords*>::const_iterator ci = creditMap.constBegin();
+      while (ci != creditMap.constEnd()) {
+            CreditWords* w = ci.value();
+            qDebug("creditMap %d credit-words defx=%g defy=%g just=%s hal=%s val=%s words=%s",
+                   ci.key(),
+                   w->defaultX,
+                   w->defaultY,
+                   w->justify.toUtf8().data(),
+                   w->hAlign.toUtf8().data(),
+                   w->vAlign.toUtf8().data(),
+                   w->words.toUtf8().data());
+            ++ci;
+            }
+       */
+
+      // assign title, subtitle and copyright
+      QList<int> keys = creditMap.uniqueKeys(); // note: ignoring credit-words at the same y pos
+
+      // if any credit-words present, the highest is the title
+      // note that the keys are sorted in ascending order
+      // -> use the last key
+      if (keys.size() >= 1)
+            crwTitle = creditMap.value(keys.at(keys.size() - 1));
+
+      // if two credit-words present and both are in the header or the footer,
+      // the lowest one is the subtitle, else it is the copyright
+      if (keys.size() == 2) {
+            if (nWordsHeader == 2 || nWordsFooter == 2)
+                  crwSubTitle = creditMap.value(keys.at(0));
+            else
+                  crwCopyRight = creditMap.value(keys.at(0));
+            }
+
+      // if three or more credit-words present
+      // the second-highest is the subtitle
+      // the lowest one is the copyright
+      if (keys.size() >= 3) {
+            crwSubTitle = creditMap.value(keys.at(keys.size() - 2));
+            crwCopyRight = creditMap.value(keys.at(0));
+            }
+
       /*
       if (crwTitle) qDebug("title='%s'", crwTitle->words.toUtf8().data());
       if (crwSubTitle) qDebug("subtitle='%s'", crwSubTitle->words.toUtf8().data());
       if (crwComposer) qDebug("composer='%s'", crwComposer->words.toUtf8().data());
       if (crwPoet) qDebug("poet='%s'", crwPoet->words.toUtf8().data());
       if (crwCopyRight) qDebug("copyright='%s'", crwCopyRight->words.toUtf8().data());
-      */
-
-      if (crwTitle || crwSubTitle || crwComposer || crwPoet || crwCopyRight)
-            score->setCreditsRead(true);
+       */
 
       QString strTitle;
       QString strSubTitle;
@@ -863,13 +899,15 @@ void MusicXml::doCredits()
       QString strPoet;
       QString strTranslator;
 
-      if (score->creditsRead()) {
+      if (crwTitle || crwSubTitle || crwComposer || crwPoet || crwCopyRight) {
+            // use credits
             if (crwTitle) strTitle = crwTitle->words;
             if (crwSubTitle) strSubTitle = crwSubTitle->words;
             if (crwComposer) strComposer = crwComposer->words;
             if (crwPoet) strPoet = crwPoet->words;
             }
       else {
+            // use metadata
             if (!(score->metaTag("movementTitle").isEmpty() && score->metaTag("workTitle").isEmpty())) {
                   strTitle = score->metaTag("movementTitle");
                   if (strTitle.isEmpty())
@@ -880,9 +918,12 @@ void MusicXml::doCredits()
                   if (strSubTitle.isEmpty())
                         strSubTitle = score->metaTag("workNumber");
                   }
-            if (!composer.isEmpty()) strComposer = composer;
-            if (!poet.isEmpty()) strPoet = poet;
-            if (!translator.isEmpty()) strTranslator = translator;
+            QString metaComposer = score->metaTag("composer");
+            QString metaPoet = score->metaTag("poet");
+            QString metaTranslator = score->metaTag("translator");
+            if (!metaComposer.isEmpty()) strComposer = metaComposer;
+            if (!metaPoet.isEmpty()) strPoet = metaPoet;
+            if (!metaTranslator.isEmpty()) strTranslator = metaTranslator;
             }
 
       VBox* vbox  = 0;
@@ -895,7 +936,14 @@ void MusicXml::doCredits()
             vbox->setTick(0);
             score->measures()->add(vbox);
             }
-      if (crwCopyRight)
+
+      // if no <rights> element was read and a copyright was found in the credit-words
+      // set the rights metadata to the value found
+      // note that MusicXML files can contain at least two different copyright statements:
+      // - in the <rights> element (metadata)
+      // - in the <credit-words> (the printed version)
+      // while MuseScore supports only the first one
+      if (score->metaTag("copyright") == "" && crwCopyRight)
             score->setMetaTag("copyright", crwCopyRight->words);
       }
 
@@ -1058,26 +1106,11 @@ void MusicXml::scorePartwise(QDomElement ee)
                         }
                   }
             else if (tag == "identification") {
-                  // TODO: this is metadata !
+                  // read the metadata
                   for (QDomElement ee = e.firstChildElement(); !ee.isNull(); ee = ee.nextSiblingElement()) {
                         if (ee.tagName() == "creator") {
                               // type is an arbitrary label
-                              QString type = ee.attribute(QString("type"));
-                              QString str = ee.text();
-                              MusicXmlCreator* crt = new MusicXmlCreator(type, str);
-                              score->addCreator(crt);
-                              if (type == "composer")
-                                    composer = str;
-                              else if (type == "poet") //not in dtd ?
-                                    poet = str;
-                              else if (type == "lyricist")
-                                    poet = str;
-                              else if (type == "translator")
-                                    translator = str;
-                              else if (type == "transcriber")
-                                    ;
-                              else
-                                    qDebug("unknown creator <%s>", type.toLatin1().data());
+                              score->setMetaTag(ee.attribute(QString("type")), ee.text());
                               }
                         else if (ee.tagName() == "rights")
                               score->setMetaTag("copyright", ee.text());
@@ -1153,6 +1186,10 @@ void MusicXml::scorePartwise(QDomElement ee)
                               domNotImplemented(ee);
                         else if (tag == "lyric-font")
                               domNotImplemented(ee);
+                        else if (tag == "appearance")
+                              domNotImplemented(ee);
+                        else if (tag == "lyric-language")
+                              domNotImplemented(ee);
                         else
                               domError(ee);
                         }
@@ -1165,48 +1202,91 @@ void MusicXml::scorePartwise(QDomElement ee)
             else if (tag == "movement-title")
                   score->setMetaTag("movementTitle", e.text());
             else if (tag == "credit") {
-                  for (QDomElement ee = e.firstChildElement(); !ee.isNull(); ee = ee.nextSiblingElement()) {
-                        QString tag(ee.tagName());
-                        if (tag == "credit-words") {
-                              // IMPORT_LAYOUT
-                              double defaultx    = ee.attribute(QString("default-x")).toDouble();
-                              double defaulty    = ee.attribute(QString("default-y")).toDouble();
-                              QString justify = ee.attribute(QString("justify"));
-                              QString halign  = ee.attribute(QString("halign"));
-                              QString valign  = ee.attribute(QString("valign"));
-                              QString crwords = ee.text();
+                  QString page = e.attribute(QString("page"), "1");
+                  // handle only page 1 credits (to extract title etc.)
+                  if (page == "1") {
+                        // multiple credit-words elements may be present,
+                        // which are appended
+                        // use the position info from the first one
+                        // font information is ignored, credits will be styled
+                        bool   creditWordsRead = false;
+                        double defaultx = 0;
+                        double defaulty = 0;
+                        QString justify;
+                        QString halign;
+                        QString valign;
+                        QString crwords;
+                        for (QDomElement ee = e.firstChildElement(); !ee.isNull(); ee = ee.nextSiblingElement()) {
+                              QString tag(ee.tagName());
+                              if (tag == "credit-words") {
+                                    // IMPORT_LAYOUT
+                                    if (!creditWordsRead) {
+                                          defaultx = ee.attribute(QString("default-x")).toDouble();
+                                          defaulty = ee.attribute(QString("default-y")).toDouble();
+                                          justify  = ee.attribute(QString("justify"));
+                                          halign   = ee.attribute(QString("halign"));
+                                          valign   = ee.attribute(QString("valign"));
+                                          creditWordsRead = true;
+                                          }
+                                    crwords += ee.text();
+                                    }
+                              else
+                                    domError(ee);
+                              }
+                        if (crwords != "") {
                               CreditWords* cw = new CreditWords(defaultx, defaulty, justify, halign, valign, crwords);
                               credits.append(cw);
                               }
-                        else
-                              domError(ee);
                         }
                   }
             else
                   domError(e);
             }
 
-      // add bracket where required
-      const QList<Part*>& il = score->parts();
-      // add bracket to multi-staff parts
-      /* LVIFIX TODO is this necessary ?
-      for (int idx = 0; idx < il.size(); ++idx) {
-            Part* part = il.at(idx);
-            qDebug("part %d staves=%d", idx, part->nstaves());
-            if (part->nstaves() > 1)
-                  part->staff(0)->addBracket(BracketItem(BRACKET_AKKOLADE, part->nstaves()));
-            }
-      */
+      // add brackets where required
+
+      /*
+      qDebug("partGroupList");
       for (int i = 0; i < (int) partGroupList.size(); i++) {
             MusicXmlPartGroup* pg = partGroupList[i];
+            qDebug("part-group span %d start %d type %d barlinespan %d",
+                   pg->span, pg->start, pg->type, pg->barlineSpan);
+            }
+       */
+
+      // set of (typically multi-staff) parts containing one or more explicit brackets
+      // spanning only that part: these won't get an implicit brace later
+      // e.g. a two-staff piano part with an explicit brace
+      QSet<Part const* const> partSet;
+
+      // handle the explicit brackets
+      const QList<Part*>& il = score->parts();
+      for (int i = 0; i < (int) partGroupList.size(); i++) {
+            MusicXmlPartGroup* pg = partGroupList[i];
+            // add part to set
+            if (pg->span == 1)
+                  partSet << il.at(pg->start);
             // determine span in staves
             int stavesSpan = 0;
             for (int j = 0; j < pg->span; j++)
                   stavesSpan += il.at(pg->start + j)->nstaves();
-            // and add bracket
-            il.at(pg->start)->staff(0)->addBracket(BracketItem(pg->type, stavesSpan));
+            // add bracket and set the span
+            // TODO: use group-symbol default-x to determine horizontal order of brackets
+            if (pg->type == NO_BRACKET)
+                  il.at(pg->start)->staff(0)->setBracket(0, NO_BRACKET);
+            else
+                  il.at(pg->start)->staff(0)->addBracket(BracketItem(pg->type, stavesSpan));
             if (pg->barlineSpan)
                   il.at(pg->start)->staff(0)->setBarLineSpan(pg->span);
+            }
+
+      // handle the implicit brackets:
+      // multi-staff parts w/o explicit brackets get a brace
+      foreach(Part const* const p, il) {
+            if (p->nstaves() > 1 && !partSet.contains(p)) {
+                  p->staff(0)->addBracket(BracketItem(BRACKET_BRACE, p->nstaves()));
+                  p->staff(0)->setBarLineSpan(p->nstaves());
+                  }
             }
 
       // having read all parts (meaning all segments have been created),
@@ -1253,13 +1333,15 @@ static void partGroupStart(MusicXmlPartGroup* (&pgs)[MAX_PART_GROUPS], int n, in
 
       BracketType bracketType = NO_BRACKET;
       if (s == "")
-            ;  //ignore
+            ;  // ignore (handle as NO_BRACKET)
+      else if (s == "none")
+            ;  // already set to NO_BRACKET
       else if (s == "brace")
             bracketType = BRACKET_BRACE;
       else if (s == "bracket")
             bracketType = BRACKET_NORMAL;
       else if (s == "line")
-            bracketType = BRACKET_NORMAL;
+            bracketType = BRACKET_LINE;
       else if (s == "square")
             bracketType = BRACKET_SQUARE;
       else {
@@ -1402,6 +1484,12 @@ void MusicXml::xmlScorePart(QDomElement e, QString id, int& parts)
                               if (part->longName().isEmpty())
                                     part->setLongName(ee.text());
                               }
+                        else if (ee.tagName() == "instrument-sound")
+                              domNotImplemented(e);
+                        else if (ee.tagName() == "solo")
+                              domNotImplemented(e);
+                        else if (ee.tagName() == "virtual-instrument")
+                              domNotImplemented(e);
                         else
                               domError(ee);
                         }
@@ -1444,11 +1532,13 @@ void MusicXml::xmlScorePart(QDomElement e, QString id, int& parts)
       */
 
       // dump drumset for this part
+      /*
       MusicXMLDrumsetIterator i(drumsets[id]);
       while (i.hasNext()) {
             i.next();
             qDebug("%s %s", qPrintable(i.key()), qPrintable(i.value().toString()));
             }
+       */
       }
 
 
@@ -1607,7 +1697,7 @@ static void fillGapsInFirstVoices(Measure* measure, Part* part)
 
 void MusicXml::xmlPart(QDomElement e, QString id)
       {
-      qDebug("xmlPart(id='%s')", qPrintable(id));
+      // qDebug("xmlPart(id='%s')", qPrintable(id));
       if (id == "") {
             qDebug("MusicXML import: part without id");
             return;
@@ -1659,7 +1749,7 @@ void MusicXml::xmlPart(QDomElement e, QString id)
             }
 
       // qDebug("wedge list:");
-      QMap<Spanner*, QPair<int, int> >::const_iterator i = spanners.constBegin();
+      auto i = spanners.constBegin();
       while (i != spanners.constEnd()) {
             Spanner* sp = i.key();
             int tick1 = i.value().first;
@@ -1683,7 +1773,7 @@ void MusicXml::xmlPart(QDomElement e, QString id)
       MusicXMLDrumsetIterator ii(drumsets[id]);
       while (ii.hasNext()) {
             ii.next();
-            qDebug("%s %s", qPrintable(ii.key()), qPrintable(ii.value().toString()));
+            // qDebug("%s %s", qPrintable(ii.key()), qPrintable(ii.value().toString()));
             int pitch = ii.value().pitch;
             if (0 <= pitch && pitch <= 127) {
                   hasDrumset = true;
@@ -1692,14 +1782,14 @@ void MusicXml::xmlPart(QDomElement e, QString id)
                                          ii.value().notehead, ii.value().line, ii.value().stemDirection);
                   }
             }
-      qDebug("hasDrumset %d", hasDrumset);
+      // qDebug("hasDrumset %d", hasDrumset);
       if (hasDrumset) {
             // set staff type to percussion if incorrectly imported as pitched staff
             // Note: part has been read, staff type already set based on clef type and staff-details
             // but may be incorrect for a percussion staff that does not use a percussion clef
             for (int j = 0; j < part->nstaves(); ++j)
                   if (part->staff(j)->lines() == 5 && !part->staff(j)->isDrumStaff())
-                        part->staff(j)->setStaffType(score->staffType(PERCUSSION_STAFF_TYPE));
+                        part->staff(j)->setStaffType(score->staffType(PERC_DEFAULT_STAFF_TYPE));
             // set drumset for instrument
             part->instr()->setUseDrumset(true);
             part->instr()->setDrumset(drumset);
@@ -1833,8 +1923,7 @@ static void handleBeamAndStemDir(ChordRest* cr, const BeamMode bm, const MScore:
       {
       if (!cr) return;
       // create a new beam
-      // currently only required when stem direction is explicit
-      if (bm == BeamMode::BEGIN && sd != MScore::AUTO) {
+      if (bm == BeamMode::BEGIN) {
             // if currently in a beam, delete it
             if (beam) {
                   qDebug("handleBeamAndStemDir() new beam, removing previous incomplete beam %p", beam);
@@ -1938,12 +2027,12 @@ Measure* MusicXml::xmlMeasure(Part* part, QDomElement e, int number, int measure
             measure->setIrregular(true);
 
       int cv = 0; // current voice for chords, default is 0
-
+      QList<GraceNoteInfo> graceNotesInfos;
       for (e = e.firstChildElement(); !e.isNull(); e = e.nextSiblingElement()) {
             if (e.tagName() == "attributes")
                   xmlAttributes(measure, staff, e.firstChildElement());
             else if (e.tagName() == "note") {
-                  xmlNote(measure, staff, part->id(), beam, cv, e);
+                  xmlNote(measure, staff, part->id(), beam, cv, e, graceNotesInfos);
                   moveTick(measure->tick(), tick, maxtick, noteTypeTickFr, divisions, e);
 #ifdef DEBUG_TICK
                   qDebug(" after inserting note tick=%d", tick);
@@ -1972,7 +2061,7 @@ Measure* MusicXml::xmlMeasure(Part* part, QDomElement e, int number, int measure
                               LayoutBreak* lb = new LayoutBreak(score);
                               lb->setTrack(staff * VOICES);
                               lb->setLayoutBreakType(
-                                    newSystem == "yes" ? LAYOUT_BREAK_LINE : LAYOUT_BREAK_PAGE
+                                    newSystem == "yes" ? LayoutBreak::LINE : LayoutBreak::PAGE
                                     );
                               pm->add(lb);
                               }
@@ -2465,6 +2554,8 @@ void MusicXml::direction(Measure* measure, int staff, QDomElement e)
                   if (rstaff < 0)         // ???
                         rstaff = 0;
                   }
+            else if (e.tagName() == "voice")
+                  domNotImplemented(e);
             else
                   domError(e);
             } // for (e = e.firstChildElement(); ...
@@ -2734,6 +2825,7 @@ void MusicXml::direction(Measure* measure, int staff, QDomElement e)
             if (type == "crescendo" || type == "diminuendo") {
                   if (hairpin) {
                         qDebug("overlapping wedge not supported");
+                        spanners.remove(hairpin);
                         delete hairpin;
                         hairpin = 0;
                         }
@@ -2919,10 +3011,10 @@ void MusicXml::direction(Measure* measure, int staff, QDomElement e)
                         else {
                               ottava = new Ottava(score);
                               ottava->setTrack((staff + rstaff) * VOICES);
-                              if (type == "down" && ottavasize ==  8) ottava->setOttavaType(Ottava::OTTAVA_8VA);
-                              if (type == "down" && ottavasize == 15) ottava->setOttavaType(Ottava::OTTAVA_15MA);
-                              if (type ==   "up" && ottavasize ==  8) ottava->setOttavaType(Ottava::OTTAVA_8VB);
-                              if (type ==   "up" && ottavasize == 15) ottava->setOttavaType(Ottava::OTTAVA_15MB);
+                              if (type == "down" && ottavasize ==  8) ottava->setOttavaType(OttavaType::OTTAVA_8VA);
+                              if (type == "down" && ottavasize == 15) ottava->setOttavaType(OttavaType::OTTAVA_15MA);
+                              if (type ==   "up" && ottavasize ==  8) ottava->setOttavaType(OttavaType::OTTAVA_8VB);
+                              if (type ==   "up" && ottavasize == 15) ottava->setOttavaType(OttavaType::OTTAVA_15MB);
                               if (placement == "") placement = "above";  // set default
                               setSLinePlacement(ottava,
                                                 score->spatium(), placement,
@@ -2956,10 +3048,10 @@ static void setStaffLines(Score* score, int staffIdx, int stafflines)
       }
 
 //---------------------------------------------------------
-//   readTablature
+//   readStringData
 //---------------------------------------------------------
 
-static void readTablature(Tablature* t, QDomElement de)
+static void readStringData(StringData* t, QDomElement de)
       {
       t->setFrets(25);
 
@@ -3013,7 +3105,7 @@ static void readTablature(Tablature* t, QDomElement de)
 //   xmlStaffDetails
 //---------------------------------------------------------
 
-static void xmlStaffDetails(Score* score, int staff, Tablature* t, QDomElement e)
+static void xmlStaffDetails(Score* score, int staff, StringData* t, QDomElement e)
       {
       int number  = e.attribute(QString("number"), "-1").toInt();
       int staffIdx = staff;
@@ -3043,9 +3135,9 @@ static void xmlStaffDetails(Score* score, int staff, Tablature* t, QDomElement e
             }
 
       if (t) {
-            readTablature(t, e);
+            readStringData(t, e);
             Instrument* i = score->staff(staff)->part()->instr();
-            i->setTablature(t);
+            i->setStringData(t);
             }
       }
 
@@ -3077,12 +3169,6 @@ void MusicXml::xmlAttributes(Measure* measure, int staff, QDomElement e)
                   // grow tuplets size, do not shrink to prevent losing info
                   if (staves * VOICES > tuplets.size())
                         tuplets.resize(staves * VOICES);
-                  Staff* st = part->staff(0);
-                  if (st && staves == 2) {
-                        st->setBracket(0, BRACKET_BRACE);
-                        st->setBracketSpan(0, 2);
-                        st->setBarLineSpan(2); //seems to be default in musicXML
-                        }
                   }
             }
 
@@ -3168,7 +3254,7 @@ void MusicXml::xmlAttributes(Measure* measure, int staff, QDomElement e)
                         staffIdx += number - 1;
                   // qDebug("xmlAttributes clef score->staff(0) %p staffIdx %d score->staff(%d) %p",
                   //       score->staff(0), staffIdx, staffIdx, score->staff(staffIdx));
-                  if (st != PITCHED_STAFF_TYPE)
+                  if (st != STANDARD_STAFF_TYPE)
                         score->staff(staffIdx)->setStaffType(score->staffType(st));
                   }
             else if (e.tagName() == "staves")
@@ -3178,9 +3264,9 @@ void MusicXml::xmlAttributes(Measure* measure, int staff, QDomElement e)
                   int staffIdx = staff;
                   if (number != -1)
                         staffIdx += number - 1;
-                  Tablature* t = 0;
+                  StringData* t = 0;
                   if (score->staff(staffIdx)->isTabStaff())
-                        t = new Tablature;
+                        t = new StringData;
                   xmlStaffDetails(score, staff, t, e);
                   }
             else if (e.tagName() == "instruments")
@@ -4072,6 +4158,7 @@ void MusicXml::xmlNotations(Note* note, ChordRest* cr, int trk, int ticks, QDomE
                               //slur[slurNo]->setStart(tick, trk + voice);
                               //slur[slurNo]->setTrack((staff + relStaff) * VOICES);
                               slur[slurNo]->setTrack(track);
+                              slur[slurNo]->setTrack2(track);
                               score->addElement(slur[slurNo]);
                               if (endSlur) {
                                     slur[slurNo]->setTick(cr->tick());
@@ -4083,10 +4170,12 @@ void MusicXml::xmlNotations(Note* note, ChordRest* cr, int trk, int ticks, QDomE
                               if (slur[slurNo] == 0) {
                                     slur[slurNo] = new Slur(score);
                                     slur[slurNo]->setTick2(cr->tick());
+                                    slur[slurNo]->setTrack2(track);
                                     slur[slurNo]->setEndElement(cr);
                                     }
                               else {
                                     slur[slurNo]->setTick2(cr->tick());
+                                    slur[slurNo]->setTrack2(track);
                                     slur[slurNo]->setEndElement(cr);
                                     slur[slurNo] = 0;
                                     }
@@ -4431,7 +4520,7 @@ static FiguredBass* findLastFiguredBass(int track, Segment* seg)
  \a Staff is the number of first staff of the part this note belongs to.
  */
 
-void MusicXml::xmlNote(Measure* measure, int staff, const QString& partId, Beam*& beam, int& currentVoice, QDomElement e)
+void MusicXml::xmlNote(Measure* measure, int staff, const QString& partId, Beam*& beam, int& currentVoice, QDomElement e, QList<GraceNoteInfo>& gni)
       {
       int ticks = 0;
 #ifdef DEBUG_TICK
@@ -4685,8 +4774,6 @@ void MusicXml::xmlNote(Measure* measure, int staff, const QString& partId, Beam*
                         noteheadColor = QColor(color);
                   }
             else if (tag == "instrument") {
-                  qDebug("MusicXml::xmlNote part %s instrument %s",
-                         qPrintable(partId), qPrintable(e.attribute("id")));
                   instrId = e.attribute("id");
                   }
             else if (tag == "cue")
@@ -4747,7 +4834,7 @@ void MusicXml::xmlNote(Measure* measure, int staff, const QString& partId, Beam*
             if (step != "" && 0 <= octave && octave <= 9) {
                   // qDebug("rest step=%s oct=%d", qPrintable(step), octave);
                   ClefType clef = cr->staff()->clef(loc_tick);
-                  int po = clefTable[clef].pitchOffset;
+                  int po = ClefInfo::pitchOffset(clef);
                   int istep = step[0].toLatin1() - 'A';
                   // qDebug(" clef=%d po=%d istep=%d", clef, po, istep);
                   if (istep < 0 || istep > 6) {
@@ -4766,8 +4853,6 @@ void MusicXml::xmlNote(Measure* measure, int staff, const QString& partId, Beam*
             char c = step[0].toLatin1();
             note = new Note(score);
             note->setHeadGroup(headGroup);
-            // note->setTrack(track);
-            // note->setStaffMove(move);
             if (noteheadColor != QColor::Invalid)
                   note->setColor(noteheadColor);
 
@@ -4776,57 +4861,24 @@ void MusicXml::xmlNote(Measure* measure, int staff, const QString& partId, Beam*
                   note->setVeloOffset(velocity);
                   }
 
-            // if (grace)
-            //       qDebug(" grace: nrOfGraceSegsReq: %d", nrOfGraceSegsReq(pn));
-            int gl = nrOfGraceSegsReq(pn);
-            // TODO-S  cr = measure->findChord(loc_tick, track, grace);
-            // implementation of grace notes has changed
-
             cr = measure->findChord(loc_tick, track);
             if (cr == 0) {
-                  // Segment::SegmentType st = Segment::SegChordRest;
-                  cr = new Chord(score);
-                  cr->setBeamMode(bm);
-                  cr->setTrack(track);
-                  // qDebug(" grace=%d", grace);
-                  if (grace) {
-                        NoteType nt = NOTE_APPOGGIATURA;
-                        if (graceSlash == "yes")
-                              nt = NOTE_ACCIACCATURA;
-                        ((Chord*)cr)->setNoteType(nt);
-                        // the subtraction causes a grace at tick=0 to fail
-                        // cr->setTick(tick - (MScore::division / 2));
-                        if (durationType.type() == TDuration::V_QUARTER) {
-                              ((Chord*)cr)->setNoteType(NOTE_GRACE4);
-                              cr->setDurationType(TDuration::V_QUARTER);
-                              }
-                        else if (durationType.type() == TDuration::V_16TH) {
-                              ((Chord*)cr)->setNoteType(NOTE_GRACE16);
-                              cr->setDurationType(TDuration::V_16TH);
-                              }
-                        else if (durationType.type() == TDuration::V_32ND) {
-                              ((Chord*)cr)->setNoteType(NOTE_GRACE32);
-                              cr->setDurationType(TDuration::V_32ND);
-                              }
-                        else
-                              cr->setDurationType(TDuration::V_EIGHT);
-                        // st = Segment::SegGrace;
-                        }
-                  else {
+                  if(!grace) {
+                        cr = new Chord(score);
+                        cr->setBeamMode(bm);
+                        cr->setTrack(track);
+
                         if (durationType.type() == TDuration::V_INVALID)
                               durationType.setType(TDuration::V_QUARTER);
                         cr->setDurationType(durationType);
-                        }
-                  cr->setDots(dots);
-                  cr->setDuration(cr->durationType().fraction());
-                  //qDebug(" cr->tick()=%d ", cr->tick());
-//TODO-S  deal with grace notes
-                  if(gl == 0) {
+                        cr->setDots(dots);
+                        cr->setDuration(cr->durationType().fraction());
                         Segment* s = measure->getSegment(cr, loc_tick);
                         s->add(cr);
                         }
                   }
-            cr->setStaffMove(move);
+            if(cr)
+                  cr->setStaffMove(move);
 
             // pitch must be set before adding note to chord as note
             // is inserted into pitch sorted list (ws)
@@ -4843,7 +4895,38 @@ void MusicXml::xmlNote(Measure* measure, int staff, const QString& partId, Beam*
                   }
             else
                   xmlSetPitch(note, c, alter, octave, ottava, track);
+
+            if(grace) {
+                  NoteType nt = NOTE_APPOGGIATURA;
+                  int len = MScore::division/2;
+                  if (graceSlash == "yes")
+                         nt = NOTE_ACCIACCATURA;
+                  if (durationType.type() == TDuration::V_QUARTER) {
+                        nt = NOTE_GRACE4;
+                        len = MScore::division;
+                        }
+                  else if (durationType.type() == TDuration::V_16TH) {
+                        nt = NOTE_GRACE16;
+                        len = MScore::division/4;
+                        }
+                  else if (durationType.type() == TDuration::V_32ND) {
+                        nt = NOTE_GRACE32;
+                        len = MScore::division/8;
+                        }
+                  gni.append({nt, note->pitch(), note->tpc(), len});
+                  delete note;
+                  return;
+                  }
+
             cr->add(note);
+
+            if(!grace && gni.size() > 0) {
+                  for (int i = gni.size() - 1; i >= 0; --i) {
+                        GraceNoteInfo g = gni.at(i);
+                        score->setGraceNote(static_cast<Chord*>(cr), g.pitch, g.type, false, g.len, g.tpc);
+                        }
+                  gni.clear();
+                  }
 
             static_cast<Chord*>(cr)->setNoStem(noStem);
 
@@ -4884,7 +4967,7 @@ void MusicXml::xmlNote(Measure* measure, int staff, const QString& partId, Beam*
             if (unpitched) {
                   // determine staff line based on display-step / -octave and clef type
                   ClefType clef = cr->staff()->clef(loc_tick);
-                  int po = clefTable[clef].pitchOffset;
+                  int po = ClefInfo::pitchOffset(clef);
                   int pitch = MusicXMLStepAltOct2Pitch(step[0].toLatin1(), 0, octave);
                   int line = po - absStep(pitch);
 
@@ -4904,10 +4987,6 @@ void MusicXml::xmlNote(Measure* measure, int staff, const QString& partId, Beam*
                               sd = MScore::UP;
                         }
 
-                  qDebug("MusicXml::xmlNote clef %d po %d (line %d) pitch %d (line %d)",
-                         clef, po, absStep(po), pitch, absStep(pitch));
-                  qDebug("MusicXml::xmlNote part %s instrument %s notehead %d line %d stemDir %d",
-                         qPrintable(partId), qPrintable(instrId), headGroup, line, sd);
                   if (drumsets.contains(partId)
                       && drumsets[partId].contains(instrId)) {
                         drumsets[partId][instrId].notehead = headGroup;
@@ -5039,6 +5118,7 @@ void MusicXml::xmlHarmony(QDomElement e, int tick, Measure* measure, int staff)
 
       Harmony* ha = new Harmony(score);
       ha->setUserOff(QPointF(rx, ry + dy - styleYOff));
+      int offset = 0;
       for (e = e.firstChildElement(); !e.isNull(); e = e.nextSiblingElement()) {
             QString tag(e.tagName());
             if (tag == "root") {
@@ -5151,12 +5231,10 @@ void MusicXml::xmlHarmony(QDomElement e, int tick, Measure* measure, int staff)
             else if (tag == "level")
                   domNotImplemented(e);
             else if (tag == "offset")
-                  domNotImplemented(e);
+                  offset = calcTicks(e.text(), divisions);
             else
                   domError(e);
             }
-
-      //TODO-WS ha->setTick(tick);
 
       const ChordDescription* d = 0;
       if (ha->rootTpc() != INVALID_TPC)
@@ -5176,7 +5254,7 @@ void MusicXml::xmlHarmony(QDomElement e, int tick, Measure* measure, int staff)
       // TODO-LV: do this only if ha points to a valid harmony
       // harmony = ha;
       ha->setTrack(staff * VOICES);
-      Segment* s = measure->getSegment(Segment::SegChordRest, tick);
+      Segment* s = measure->getSegment(Segment::SegChordRest, tick + offset);
       s->add(ha);
       }
 
@@ -5186,8 +5264,8 @@ void MusicXml::xmlHarmony(QDomElement e, int tick, Measure* measure, int staff)
 
 int MusicXml::xmlClef(QDomElement e, int staffIdx, Measure* measure)
       {
-      ClefType clef   = CLEF_G;
-      int res = PITCHED_STAFF_TYPE;
+      ClefType clef   = ClefType::G;
+      int res = STANDARD_STAFF_TYPE;
       int clefno = e.attribute(QString("number"), "1").toInt() - 1;
       QString c;
       int i = 0;
@@ -5218,48 +5296,48 @@ int MusicXml::xmlClef(QDomElement e, int staffIdx, Measure* measure)
             }
 
       if (c == "G" && i == 0 && line == 2)
-            clef = CLEF_G;
+            clef = ClefType::G;
       else if (c == "G" && i == 1 && line == 2)
-            clef = CLEF_G1;
+            clef = ClefType::G1;
       else if (c == "G" && i == 2 && line == 2)
-            clef = CLEF_G2;
+            clef = ClefType::G2;
       else if (c == "G" && i == -1 && line == 2)
-            clef = CLEF_G3;
+            clef = ClefType::G3;
       else if (c == "G" && i == 0 && line == 1)
-            clef = CLEF_G4;
+            clef = ClefType::G4;
       else if (c == "F" && i == 0 && line == 3)
-            clef = CLEF_F_B;
+            clef = ClefType::F_B;
       else if (c == "F" && i == 0 && line == 4)
-            clef = CLEF_F;
+            clef = ClefType::F;
       else if (c == "F" && i == 1 && line == 4)
-            clef = CLEF_F_8VA;
+            clef = ClefType::F_8VA;
       else if (c == "F" && i == 2 && line == 4)
-            clef = CLEF_F_15MA;
+            clef = ClefType::F_15MA;
       else if (c == "F" && i == -1 && line == 4)
-            clef = CLEF_F8;
+            clef = ClefType::F8;
       else if (c == "F" && i == -2 && line == 4)
-            clef = CLEF_F15;
+            clef = ClefType::F15;
       else if (c == "F" && i == 0 && line == 5)
-            clef = CLEF_F_C;
+            clef = ClefType::F_C;
       else if (c == "C") {
             if (line == 5)
-                  clef = CLEF_C5;
+                  clef = ClefType::C5;
             else if (line == 4)
-                  clef = CLEF_C4;
+                  clef = ClefType::C4;
             else if (line == 3)
-                  clef = CLEF_C3;
+                  clef = ClefType::C3;
             else if (line == 2)
-                  clef = CLEF_C2;
+                  clef = ClefType::C2;
             else if (line == 1)
-                  clef = CLEF_C1;
+                  clef = ClefType::C1;
             }
       else if (c == "percussion") {
-            clef = CLEF_PERC2;
-            res = PERCUSSION_STAFF_TYPE;
+            clef = ClefType::PERC2;
+            res = PERC_DEFAULT_STAFF_TYPE;
             }
       else if (c == "TAB") {
-            clef = CLEF_TAB2;
-            res = TAB_STAFF_TYPE;
+            clef = ClefType::TAB2;
+            res = TAB_DEFAULT_STAFF_TYPE;
             }
       else
             qDebug("ImportMusicXML: unknown clef <sign=%s line=%d oct ch=%d>", qPrintable(c), line, i);

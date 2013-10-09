@@ -17,13 +17,10 @@ void TracksModel::reset(const QList<TrackMeta> &tracksMeta)
       tracksData_.clear();
       int i = 0;
       for (const auto &meta: tracksMeta) {
-            QString staffName = meta.staffName.isEmpty()
-                        ? "-" : meta.staffName;
-            QString instrumentName = meta.instrumentName.isEmpty()
-                        ? "-" : meta.instrumentName;
             TrackOperations ops;     // initialized by default values - see ctor
             ops.reorderedIndex = i++;
-            tracksData_.push_back({{staffName, instrumentName}, ops});
+            ops.lyricTrackIndex = meta.initLyricTrackIndex;
+            tracksData_.push_back({meta, ops});
             }
       endResetModel();
       }
@@ -46,7 +43,7 @@ void TracksModel::clear()
 
 void TracksModel::setOperation(int row, MidiOperation::Type operType, const QVariant &operValue)
       {
-      int trackIndex = trackIndexFromRow(row);
+      const int trackIndex = trackIndexFromRow(row);
       if (trackIndex == -1)
             setOperationForAllTracks(operType, operValue);
       else if (isTrackIndexValid(trackIndex))
@@ -58,6 +55,11 @@ void TracksModel::setTrackReorderedIndex(int trackIndex, int reorderIndex)
       if (!isTrackIndexValid(trackIndex))
             return;
       tracksData_[trackIndex].opers.reorderedIndex = reorderIndex;
+      }
+
+void TracksModel::setLyricsList(const QList<std::string> &list)
+      {
+      lyricsList_ = list;
       }
 
 void TracksModel::setOperationForAllTracks(MidiOperation::Type operType,
@@ -87,6 +89,12 @@ void TracksModel::setTrackOperation(int trackIndex, MidiOperation::Type operType
             case MidiOperation::Type::DO_LHRH_SEPARATION:
                   trackData.opers.LHRH.doIt = operValue.toBool();
                   break;
+            case MidiOperation::Type::SPLIT_DRUMS:
+                  trackData.opers.drums.doSplit = operValue.toBool();
+                  break;
+            case MidiOperation::Type::SHOW_STAFF_BRACKET:
+                  trackData.opers.drums.showStaffBracket = operValue.toBool();
+                  break;
             case MidiOperation::Type::LHRH_METHOD:
                   trackData.opers.LHRH.method = (MidiOperation::LHRHMethod)operValue.toInt();
                   break;
@@ -99,6 +107,9 @@ void TracksModel::setTrackOperation(int trackIndex, MidiOperation::Type operType
                   break;
             case MidiOperation::Type::USE_DOTS:
                   trackData.opers.useDots = operValue.toBool();
+                  break;
+            case MidiOperation::Type::SWING:
+                  trackData.opers.swing = (MidiOperation::Swing)operValue.toInt();
                   break;
             case MidiOperation::Type::USE_MULTIPLE_VOICES:
                   trackData.opers.useMultipleVoices = operValue.toBool();
@@ -127,7 +138,12 @@ void TracksModel::setTrackOperation(int trackIndex, MidiOperation::Type operType
             case MidiOperation::Type::CHANGE_CLEF:
                   trackData.opers.changeClef = operValue.toBool();
                   break;
+            case MidiOperation::Type::PICKUP_MEASURE:
+                  trackData.opers.pickupMeasure = operValue.toBool();
+                  break;
+
             case MidiOperation::Type::DO_IMPORT:
+            case MidiOperation::Type::LYRIC_TRACK_INDEX:
                   break;
             }
       }
@@ -135,7 +151,8 @@ void TracksModel::setTrackOperation(int trackIndex, MidiOperation::Type operType
 DefinedTrackOperations TracksModel::trackOperations(int row) const
       {
       DefinedTrackOperations opers;
-      int trackIndex = trackIndexFromRow(row);
+      const int trackIndex = trackIndexFromRow(row);
+      opers.allTracksSelected = (trackIndex == -1 || trackCount_ == 1);
 
       if (trackIndex == -1) {
             // all tracks row case
@@ -143,6 +160,7 @@ DefinedTrackOperations TracksModel::trackOperations(int row) const
             // and mark them as undefined
 
             opers.opers = tracksData_.front().opers;
+            opers.isDrumTrack = false;
 
             // MidiOperation::Type::QUANT_VALUE
             for (int i = 1; i != trackCount_; ++i) {
@@ -178,6 +196,22 @@ DefinedTrackOperations TracksModel::trackOperations(int row) const
                         }
                   }
 
+            // MidiOperation::Type::SPLIT_DRUMS
+            for (int i = 1; i != trackCount_; ++i) {
+                  if (tracksData_[i].opers.drums.doSplit != opers.opers.drums.doSplit) {
+                        opers.undefinedOpers.insert((int)MidiOperation::Type::SPLIT_DRUMS);
+                        break;
+                        }
+                  }
+
+            // MidiOperation::Type::SHOW_STAFF_BRACKET
+            for (int i = 1; i != trackCount_; ++i) {
+                  if (tracksData_[i].opers.drums.showStaffBracket != opers.opers.drums.showStaffBracket) {
+                        opers.undefinedOpers.insert((int)MidiOperation::Type::SHOW_STAFF_BRACKET);
+                        break;
+                        }
+                  }
+
             // MidiOperation::Type::LHRH_METHOD
             for (int i = 1; i != trackCount_; ++i) {
                   if (tracksData_[i].opers.LHRH.method != opers.opers.LHRH.method) {
@@ -208,6 +242,14 @@ DefinedTrackOperations TracksModel::trackOperations(int row) const
             for (int i = 1; i != trackCount_; ++i) {
                   if (tracksData_[i].opers.useDots != opers.opers.useDots) {
                         opers.undefinedOpers.insert((int)MidiOperation::Type::USE_DOTS);
+                        break;
+                        }
+                  }
+
+            // MidiOperation::Type::SWING
+            for (int i = 1; i != trackCount_; ++i) {
+                  if (tracksData_[i].opers.swing != opers.opers.swing) {
+                        opers.undefinedOpers.insert((int)MidiOperation::Type::SWING);
                         break;
                         }
                   }
@@ -282,9 +324,19 @@ DefinedTrackOperations TracksModel::trackOperations(int row) const
                         break;
                         }
                   }
+
+            // MidiOperation::Type::PICKUP_MEASURE
+            for (int i = 1; i != trackCount_; ++i) {
+                  if (tracksData_[i].opers.pickupMeasure != opers.opers.pickupMeasure) {
+                        opers.undefinedOpers.insert((int)MidiOperation::Type::PICKUP_MEASURE);
+                        break;
+                        }
+                  }
             }
-      else
+      else {
             opers.opers = tracksData_[trackIndex].opers;
+            opers.isDrumTrack = tracksData_[trackIndex].meta.isDrumTrack;
+            }
 
       return opers;
       }
@@ -326,12 +378,12 @@ Qt::CheckState TracksModel::areAllTracksForImport() const
       {
       if (trackCount_ == 0)
             return Qt::Unchecked;
-      bool firstTrackImport = tracksData_[0].opers.doImport;
+      const bool doFirstTrackImport = tracksData_[0].opers.doImport;
       for (int i = 1; i != trackCount_; ++i) {
-            if (tracksData_[i].opers.doImport != firstTrackImport)
+            if (tracksData_[i].opers.doImport != doFirstTrackImport)
                   return Qt::PartiallyChecked;
             }
-      return (firstTrackImport) ? Qt::Checked : Qt::Unchecked;
+      return (doFirstTrackImport) ? Qt::Checked : Qt::Unchecked;
       }
 
 QVariant TracksModel::data(const QModelIndex &index, int role) const
@@ -339,7 +391,7 @@ QVariant TracksModel::data(const QModelIndex &index, int role) const
       if (!index.isValid())
             return QVariant();
 
-      int trackIndex = trackIndexFromRow(index.row());
+      const int trackIndex = trackIndexFromRow(index.row());
       switch (role) {
             case Qt::DisplayRole:
                   switch (index.column()) {
@@ -347,16 +399,38 @@ QVariant TracksModel::data(const QModelIndex &index, int role) const
                               if (trackIndex == -1)
                                     return "All";
                               return trackIndex + 1;
+                        case TrackCol::LYRICS:
+                              {
+                              if (trackIndex == -1)
+                                    return "";
+                              int lyricTrack = tracksData_[trackIndex].opers.lyricTrackIndex;
+                              if (lyricTrack == -1)
+                                    return "";
+                              if (lyricTrack >= 0 && lyricTrack < lyricsList_.size())
+                                    return MidiCharset::convertToCharset(lyricsList_[lyricTrack]);
+                              }
+                              break;
                         case TrackCol::STAFF_NAME:
                               if (trackIndex == -1)
                                     return "";
-                              return tracksData_[trackIndex].meta.staffName;
+                              return MidiCharset::convertToCharset(
+                                                tracksData_[trackIndex].meta.staffName);
                         case TrackCol::INSTRUMENT:
                               if (trackIndex == -1)
                                     return "";
                               return tracksData_[trackIndex].meta.instrumentName;
                         default:
                               break;
+                        }
+                  break;
+            case Qt::EditRole:
+                  if (index.column() == TrackCol::LYRICS && trackIndex != -1) {
+                        if (!lyricsList_.isEmpty()) {
+                              auto list = QStringList("");
+                              for (const auto &lyric: lyricsList_)
+                                    list.append(MidiCharset::convertToCharset(lyric));
+                              return list;
+                              }
                         }
                   break;
             case Qt::CheckStateRole:
@@ -371,7 +445,23 @@ QVariant TracksModel::data(const QModelIndex &index, int role) const
                         }
                   break;
             case Qt::TextAlignmentRole:
-                  return Qt::AlignCenter;
+                  if (index.column() == TrackCol::LYRICS)
+                        return Qt::AlignLeft + Qt::AlignVCenter;
+                  else
+                        return Qt::AlignCenter;
+                  break;
+            case Qt::ToolTipRole:
+                  if (trackIndex != -1) {
+                        switch (index.column()) {
+                              case TrackCol::STAFF_NAME:
+                                    return MidiCharset::convertToCharset(
+                                                      tracksData_[trackIndex].meta.staffName);
+                              case TrackCol::INSTRUMENT:
+                                    return tracksData_[trackIndex].meta.instrumentName;
+                              default:
+                                    break;
+                              }
+                        }
                   break;
             default:
                   break;
@@ -386,13 +476,25 @@ Qt::ItemFlags TracksModel::flags(const QModelIndex &index) const
       Qt::ItemFlags flags = Qt::ItemFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
       if (index.column() == TrackCol::DO_IMPORT)
             flags |= Qt::ItemIsUserCheckable;
+      if (index.column() == TrackCol::LYRICS
+                  && !lyricsList_.isEmpty()
+                  && trackIndexFromRow(index.row()) != -1) {
+            flags |= Qt::ItemIsEditable;
+            }
       return flags;
+      }
+
+void TracksModel::forceColumnDataChanged(int col)
+      {
+      const auto begIndex = this->index(0, col);
+      const auto endIndex = this->index(rowCount(QModelIndex()), col);
+      emit dataChanged(begIndex, endIndex);
       }
 
 bool TracksModel::setData(const QModelIndex &index, const QVariant &value, int role)
       {
       bool result = false;
-      int trackIndex = trackIndexFromRow(index.row());
+      const int trackIndex = trackIndexFromRow(index.row());
 
       if (trackIndex == -1) {   // all tracks row
             if (index.column() == TrackCol::DO_IMPORT && role == Qt::CheckStateRole) {
@@ -403,9 +505,7 @@ bool TracksModel::setData(const QModelIndex &index, const QVariant &value, int r
             if (result) {
                               // update checkboxes of all tracks
                               // because we've changed option for all tracks simultaneously
-                  auto begIndex = this->index(0, TrackCol::DO_IMPORT);
-                  auto endIndex = this->index(rowCount(QModelIndex()), TrackCol::DO_IMPORT);
-                  emit dataChanged(begIndex, endIndex);
+                  forceColumnDataChanged(TrackCol::DO_IMPORT);
                   }
             }
       else {
@@ -416,11 +516,25 @@ bool TracksModel::setData(const QModelIndex &index, const QVariant &value, int r
                   trackData->opers.doImport = value.toBool();
                   result = true;
                   }
+            else if (index.column() == TrackCol::LYRICS && role == Qt::EditRole) {
+                  int lyricIndex = value.toInt() - 1;
+                              // reset another tracks with this index
+                  for (int i = 0; i != tracksData_.size(); ++i) {
+                        if (tracksData_[i].opers.lyricTrackIndex == lyricIndex) {
+                              tracksData_[i].opers.lyricTrackIndex = -1;
+                              const auto idx = this->index(rowFromTrackIndex(i), TrackCol::LYRICS);
+                              emit dataChanged(idx, idx);
+                              }
+                        }
+                  trackData->opers.lyricTrackIndex = lyricIndex;
+                  result = true;
+                  }
+
             if (result) {
                               // update checkbox of current track row
                   emit dataChanged(index, index);
-                              // update checkbox of all tracks row
-                  auto allIndex = this->index(0, TrackCol::DO_IMPORT);
+                              // update checkbox of <all tracks> row
+                  const auto allIndex = this->index(0, TrackCol::DO_IMPORT);
                   emit dataChanged(allIndex, allIndex);
                   }
             }
@@ -435,6 +549,8 @@ QVariant TracksModel::headerData(int section, Qt::Orientation orientation, int r
                         return "Import";
                   case TrackCol::TRACK_NUMBER:
                         return "Track";
+                  case TrackCol::LYRICS:
+                        return "Lyrics";
                   case TrackCol::STAFF_NAME:
                         return "Staff Name";
                   case TrackCol::INSTRUMENT:

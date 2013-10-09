@@ -25,6 +25,7 @@
 #include "repeat.h"
 #include "jump.h"
 #include "marker.h"
+#include "layoutbreak.h"
 
 namespace Ms {
 
@@ -51,6 +52,8 @@ bool    MScore::replaceFractions;
 bool    MScore::playRepeats;
 bool    MScore::panPlayback;
 qreal   MScore::nudgeStep;
+qreal   MScore::nudgeStep10;
+qreal   MScore::nudgeStep50;
 int     MScore::defaultPlayDuration;
 QString MScore::partStyle;
 QString MScore::lastError;
@@ -88,12 +91,13 @@ void MScore::init()
       qRegisterMetaType<FiguredBassItem::Modifier>("Modifier");
       qRegisterMetaType<FiguredBassItem::Parenthesis>("Parenthesis");
       qRegisterMetaType<VoltaType>("VoltaType");
-      qRegisterMetaType<Ottava::OttavaType>("OttavaType");
+      qRegisterMetaType<OttavaType>("OttavaType");
       qRegisterMetaType<Trill::TrillType>("TrillType");
       qRegisterMetaType<Element::DynamicRange>("DynamicRange");
       qRegisterMetaType<JumpType>("JumpType");
       qRegisterMetaType<MarkerType>("MarkerType");
       qRegisterMetaType<BeamMode>("BeamMode");
+      qRegisterMetaType<LayoutBreak::LayoutBreakType>("LayoutBreakType");
 #endif
 
       DPMM = DPI / INCH;       // dots/mm
@@ -114,7 +118,7 @@ void MScore::init()
 #endif
 
       selectColor[0].setNamedColor("#2456aa");     //blue
-      selectColor[1].setNamedColor("#5f8f00");     //green
+      selectColor[1].setNamedColor("#1a8239");     //green
       selectColor[2].setNamedColor("#d79112");  //yellow
       selectColor[3].setNamedColor("#75112b");   //purple
 
@@ -132,7 +136,7 @@ void MScore::init()
 
       layoutBreakColor    = QColor("#6abed3");
       frameMarginColor    = QColor("#6abed3");
-      bgColor.setRgb(0xbf, 0xbf, 0xbf);
+      bgColor.setNamedColor("#dddddd");
 
       _defaultStyle         = new MStyle();
       Ms::initStyle(_defaultStyle);
@@ -154,7 +158,8 @@ void MScore::init()
             "FreeSerifBold.ttf",
             "gonville-20.ttf",
             "mscoreTab.ttf",
-            "mscore-BC.ttf"
+            "mscore-BC.ttf",
+            "Bravura.otf"
             };
 
       for (unsigned i = 0; i < sizeof(fonts)/sizeof(*fonts); ++i) {

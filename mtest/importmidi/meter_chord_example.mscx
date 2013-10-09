@@ -39,8 +39,14 @@
       <Staff id="1">
         <type>0</type>
         </Staff>
-      <trackName></trackName>
+      <trackName>Grand Piano</trackName>
       <Instrument>
+        <longName pos="0">
+<html><head><meta name="qrichtext" content="1" /><style type="text/css">
+p, li { white-space: pre-wrap; }
+</style></head><body>
+<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><!--StartFragment-->Grand Piano<!--EndFragment--></p></body></html>
+          </longName>
         <trackName></trackName>
         <Channel name="normal">
           <program value="0"/>
@@ -67,7 +73,7 @@
         <Chord>
           <durationType>16th</durationType>
           <Note>
-            <Tie>
+            <Tie id="2">
               </Tie>
             <Events>
               <Event>
@@ -85,6 +91,7 @@
         <Chord>
           <durationType>16th</durationType>
           <Note>
+            <endSpanner id="2"/>
             <Events>
               <Event>
                 <pitch>0</pitch>
@@ -98,7 +105,7 @@
             <veloType>user</veloType>
             </Note>
           <Note>
-            <Tie>
+            <Tie id="3">
               </Tie>
             <Events>
               <Event>
@@ -113,7 +120,7 @@
             <veloType>user</veloType>
             </Note>
           <Note>
-            <Tie>
+            <Tie id="4">
               </Tie>
             <Events>
               <Event>
@@ -128,7 +135,7 @@
             <veloType>user</veloType>
             </Note>
           <Note>
-            <Tie>
+            <Tie id="5">
               </Tie>
             <Events>
               <Event>
@@ -146,6 +153,7 @@
         <Chord>
           <durationType>16th</durationType>
           <Note>
+            <endSpanner id="3"/>
             <Events>
               <Event>
                 <pitch>0</pitch>
@@ -159,6 +167,7 @@
             <veloType>user</veloType>
             </Note>
           <Note>
+            <endSpanner id="4"/>
             <Events>
               <Event>
                 <pitch>0</pitch>
@@ -172,8 +181,9 @@
             <veloType>user</veloType>
             </Note>
           <Note>
-            <Tie>
+            <Tie id="6">
               </Tie>
+            <endSpanner id="5"/>
             <Events>
               <Event>
                 <pitch>0</pitch>
@@ -190,6 +200,7 @@
         <Chord>
           <durationType>16th</durationType>
           <Note>
+            <endSpanner id="6"/>
             <Events>
               <Event>
                 <pitch>0</pitch>
@@ -265,7 +276,7 @@
             <veloType>user</veloType>
             </Note>
           <Note>
-            <Tie>
+            <Tie id="7">
               </Tie>
             <Events>
               <Event>
@@ -283,6 +294,7 @@
         <Chord>
           <durationType>16th</durationType>
           <Note>
+            <endSpanner id="7"/>
             <Events>
               <Event>
                 <pitch>0</pitch>

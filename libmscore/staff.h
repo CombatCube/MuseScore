@@ -37,7 +37,7 @@ class KeyList;
 class StaffType;
 class StaffTypeTablature;
 class Staff;
-class Tablature;
+class StringData;
 class ClefList;
 struct ClefTypeList;
 class Segment;
@@ -91,9 +91,7 @@ class Staff : public QObject {
       Part* _part;
       int _rstaff;                  ///< Index in Part.
 
-      ClefTypeList _initialClef;    // used by new score wizard
-
-      std::multimap<int, Clef*> clefs;
+      ClefList clefs;
       std::map<int,TimeSig*> timesigs;
       KeyList _keymap;
 
@@ -129,7 +127,7 @@ class Staff : public QObject {
       int idx() const;
       void setRstaff(int n)          { _rstaff = n;    }
       void read(XmlReader&);
-      void read114(XmlReader&, ClefList&);
+      void read114(XmlReader&);
       void write(Xml& xml) const;
       Part* part() const             { return _part;        }
       void setPart(Part* p)          { _part = p;           }
@@ -148,9 +146,8 @@ class Staff : public QObject {
       ClefType clef(Segment*) const;
       void addClef(Clef*);
       void removeClef(Clef*);
-      void setInitialClef(const ClefTypeList& cl);
-      void setInitialClef(ClefType ct);
-      ClefTypeList initialClef() const            { return _initialClef; }
+      void setClef(int, const ClefTypeList&);
+      void setClef(int, ClefType);
 
       void addTimeSig(TimeSig*);
       void removeTimeSig(TimeSig*);
@@ -191,9 +188,9 @@ class Staff : public QObject {
       StaffType* staffType() const     { return _staffType;      }
       void setStaffType(StaffType* st);
       StaffGroup staffGroup() const    { return _staffType->group(); }
-      bool isPitchedStaff() const      { return staffGroup() == PITCHED_STAFF; }
-      bool isTabStaff() const          { return staffGroup() == TAB_STAFF; }
-      bool isDrumStaff() const         { return staffGroup() == PERCUSSION_STAFF; }
+      bool isPitchedStaff() const      { return staffGroup() == STANDARD_STAFF_GROUP; }
+      bool isTabStaff() const          { return staffGroup() == TAB_STAFF_GROUP; }
+      bool isDrumStaff() const         { return staffGroup() == PERCUSSION_STAFF_GROUP; }
 
       bool updateKeymap() const        { return _updateKeymap;   }
       void setUpdateKeymap(bool v)     { _updateKeymap = v;      }
@@ -211,6 +208,7 @@ class Staff : public QObject {
       void spatiumChanged(qreal /*oldValue*/, qreal /*newValue*/);
       bool genKeySig();
       bool showLedgerLines();
+      const ClefList& clefList() const { return clefs; }
       };
 
 }     // namespace Ms

@@ -53,6 +53,7 @@ InstrumentWizard::InstrumentWizard(QWidget* parent)
       instrumentList->setSelectionMode(QAbstractItemView::ExtendedSelection);
       partiturList->setSelectionMode(QAbstractItemView::SingleSelection);
       instrumentList->setHeaderLabels(QStringList(tr("Instrument List")));
+      instrumentList->setHeaderHidden(true);
 
       QStringList header = (QStringList() << tr("Staves") << tr("Visib.") << tr("Clef") << tr("Link.") << tr("Staff type"));
       partiturList->setHeaderLabels(header);
@@ -67,7 +68,6 @@ InstrumentWizard::InstrumentWizard(QWidget* parent)
       downButton->setEnabled(false);
       linkedButton->setEnabled(false);
       belowButton->setEnabled(false);
-      connect(showMore, SIGNAL(clicked()), SLOT(buildTemplateList()));
       connect( instrumentList, SIGNAL(clicked(const QModelIndex &)), SLOT(expandOrCollapse(const QModelIndex &)));
       }
 
@@ -81,7 +81,8 @@ void InstrumentWizard::buildTemplateList()
       search->clear();
       filterInstruments(instrumentList);
 
-      populateInstrumentList(instrumentList, showMore->isChecked());
+      populateInstrumentList(instrumentList);
+      populateGenreCombo(instrumentGenreFilter);
       }
 
 //---------------------------------------------------------
@@ -208,7 +209,7 @@ void InstrumentWizard::on_addButton_clicked()
                   sli->setPartIdx(i);
                   sli->staffIdx = -1;
                   if (i > MAX_STAVES)
-                        sli->setClef(ClefTypeList(CLEF_G, CLEF_G));
+                        sli->setClef(ClefTypeList(ClefType::G, ClefType::G));
                   else
                         sli->setClef(it->clefTypes[i]);
                   sli->setStaffType(it->staffTypePreset);
@@ -465,7 +466,7 @@ void InstrumentWizard::createInstruments(Score* cs)
                   ++rstaff;
 
                   staff->init(t, sli->staffType(), cidx);
-                  staff->setInitialClef(sli->clef());
+                  staff->setClef(0, sli->clef());
 
                   if (sli->linked() && !part->staves()->isEmpty()) {
                         Staff* linkedStaff = part->staves()->back();
@@ -972,6 +973,9 @@ bool NewWizard::useTemplate() const
 void InstrumentWizard::on_search_textChanged(const QString &searchPhrase)
       {
       filterInstruments(instrumentList, searchPhrase);
+      instrumentGenreFilter->blockSignals(true);
+      instrumentGenreFilter->setCurrentIndex(0);
+      instrumentGenreFilter->blockSignals(false);
       }
 
 //---------------------------------------------------------
@@ -982,6 +986,48 @@ void InstrumentWizard::on_clearSearch_clicked()
       {
       search->clear();
       filterInstruments (instrumentList);
+      }
+
+//---------------------------------------------------------
+//   on_instrumentGenreFilter_currentTextChanged
+//---------------------------------------------------------
+
+void InstrumentWizard::on_instrumentGenreFilter_currentIndexChanged(int index)
+      {
+      QString id = instrumentGenreFilter->itemData(index).toString();
+      // Redisplay tree, only showing items from the selected genre
+      filterInstrumentsByGenre(instrumentList, id);
+      }
+
+
+//---------------------------------------------------------
+//   filterInstrumentsByGenre
+//---------------------------------------------------------
+
+void InstrumentWizard::filterInstrumentsByGenre(QTreeWidget *instrumentList, QString genre)
+      {
+      QTreeWidgetItemIterator iList(instrumentList);
+      while (*iList) {
+            (*iList)->setHidden(true);
+            InstrumentTemplateListItem* itli = static_cast<InstrumentTemplateListItem*>(*iList);
+            InstrumentTemplate *it=itli->instrumentTemplate();
+
+            if(it) {
+                  if (genre == "all" || it->genreMember(genre)) {
+                        (*iList)->setHidden(false);
+
+                        QTreeWidgetItem *iParent = (*iList)->parent();
+                        while(iParent) {
+                              if(!iParent->isHidden())
+                                    break;
+
+                              iParent->setHidden(false);
+                              iParent = iParent->parent();
+                              }
+                        }
+                  }
+            ++iList;
+            }
       }
 }
 

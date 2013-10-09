@@ -179,13 +179,15 @@ static bool readScoreError(const QString& name, Score::FileError error, bool ask
                   canIgnore = true;
                   break;
             case Score::FILE_TOO_NEW:
-                  msg += QT_TRANSLATE_NOOP(file, "this score was saved using a newer version of MuseScore.<br>\n"
+                  msg += QT_TRANSLATE_NOOP(file, "This score was saved using a newer version of MuseScore.<br>\n"
                          "Visit the <a href=\"http://musescore.org\">MuseScore website</a>"
                          " to obtain the latest version.");
                   canIgnore = true;
                   break;
-            case Score::FILE_ERROR:
             case Score::FILE_NOT_FOUND:
+                  msg = QString(QT_TRANSLATE_NOOP(file, "File not found %1")).arg(name);
+                  break;
+            case Score::FILE_ERROR:
             case Score::FILE_OPEN_ERROR:
             default:
                   msg += MScore::lastError;
@@ -536,6 +538,11 @@ void MuseScore::newFile()
             score->fileInfo()->setFile(createDefaultName());
             newWizard->createInstruments(score);
             }
+      if (!score->style()->chordList()->loaded()) {
+            if (score->style()->value(ST_chordsXmlFile).toBool())
+                  score->style()->chordList()->read("chords.xml");
+            score->style()->chordList()->read(score->style()->value(ST_chordDescriptionFile).toString());
+            }
       if (!newWizard->title().isEmpty())
             score->fileInfo()->setFile(newWizard->title());
       Measure* pm = score->firstMeasure();
@@ -697,12 +704,15 @@ void MuseScore::newFile()
                   s->setTextStyleType(TEXT_STYLE_COMPOSER);
                   s->setText(composer);
                   measure->add(s);
+                  score->setMetaTag("composer", composer);
                   }
             if (!poet.isEmpty()) {
                   Text* s = new Text(score);
                   s->setTextStyleType(TEXT_STYLE_POET);
                   s->setText(poet);
                   measure->add(s);
+                  // the poet() functions returns data called lyricist in the dialog
+                  score->setMetaTag("lyricist", poet);
                   }
             }
       if (newWizard->createTempo()) {
@@ -1553,25 +1563,51 @@ bool MuseScore::exportParts()
       if (fn.isEmpty())
           return false;
 
-      lastSaveCopyDirectory = fn;
+      QFileInfo fi(fn);
+      lastSaveCopyDirectory = fi.absolutePath();
+
+      QString ext = fi.suffix();
+      if (ext.isEmpty()) {
+            QMessageBox::critical(this, tr("MuseScore: Export Parts"), tr("cannot determine file type"));
+            return false;
+            }
 
       Score* thisScore = cs;
       if (thisScore->parentScore())
             thisScore = thisScore->parentScore();
-
+      bool overwrite = false;
+      bool noToAll = false;
       foreach(Excerpt* e, thisScore->excerpts())  {
             Score* pScore = e->score();
-            QString partfn = fn + QDir::separator() + thisScore->name() + "-" + pScore->name();
-            QFileInfo fi(partfn);
-            QString ext = fi.suffix();
-            if (ext.isEmpty()) {
-                  QMessageBox::critical(this, tr("MuseScore: Export Parts"), tr("cannot determine file type"));
-                  return false;
+            QString partfn = fi.absolutePath() + QDir::separator() + fi.baseName() + "-" + pScore->name() + "." + ext;
+            QFileInfo fip(partfn);
+            if(fip.exists() && !overwrite) {
+                  if(noToAll)
+                        continue;
+                  QMessageBox msgBox( QMessageBox::Question, tr("Confirm replace"),
+                        tr("\"%1\" already exists.\nDo you want to replace it?\n").arg(QDir::toNativeSeparators(partfn)),
+                        QMessageBox::Yes |  QMessageBox::YesToAll | QMessageBox::No |  QMessageBox::NoToAll);
+                  msgBox.setButtonText(QMessageBox::Yes, tr("Replace"));
+                  msgBox.setButtonText(QMessageBox::No, tr("Skip"));
+                  msgBox.setButtonText(QMessageBox::YesToAll, tr("Replace All"));
+                  msgBox.setButtonText(QMessageBox::NoToAll, tr("Skip All"));
+                  int sb = msgBox.exec();
+                  if(sb == QMessageBox::YesToAll) {
+                        overwrite = true;
+                        }
+                  else if (sb == QMessageBox::NoToAll) {
+                        noToAll = true;
+                        continue;
+                        }
+                  else if (sb == QMessageBox::No)
+                        continue;
                   }
+
             if (!saveAs(pScore, true, partfn, ext))
                   return false;
             }
-      QMessageBox::information(this, tr("MuseScore: Export Parts"), tr("Parts were successfully exported"));
+      if(!noToAll)
+            QMessageBox::information(this, tr("MuseScore: Export Parts"), tr("Parts were successfully exported"));
       return true;
       }
 
@@ -2006,6 +2042,8 @@ bool MuseScore::savePng(Score* score, const QString& name, bool screenshot, bool
       int pages = pl.size();
 
       int padding = QString("%1").arg(pages).size();
+      bool overwrite = false;
+      bool noToAll = false;
       for (int pageNumber = 0; pageNumber < pages; ++pageNumber) {
             Page* page = pl.at(pageNumber);
 
@@ -2047,7 +2085,30 @@ bool MuseScore::savePng(Score* score, const QString& name, bool screenshot, bool
             if (fileName.endsWith(".png"))
                   fileName = fileName.left(fileName.size() - 4);
             fileName += QString("-%1.png").arg(pageNumber+1, padding, 10, QLatin1Char('0'));
-
+            if(!converterMode) {
+                  QFileInfo fip(fileName);
+                  if(fip.exists() && !overwrite) {
+                        if(noToAll)
+                              continue;
+                        QMessageBox msgBox( QMessageBox::Question, tr("Confirm replace"),
+                              tr("\"%1\" already exists.\nDo you want to replace it?\n").arg(QDir::toNativeSeparators(fileName)),
+                              QMessageBox::Yes |  QMessageBox::YesToAll | QMessageBox::No |  QMessageBox::NoToAll);
+                        msgBox.setButtonText(QMessageBox::Yes, tr("Replace"));
+                        msgBox.setButtonText(QMessageBox::No, tr("Skip"));
+                        msgBox.setButtonText(QMessageBox::YesToAll, tr("Replace All"));
+                        msgBox.setButtonText(QMessageBox::NoToAll, tr("Skip All"));
+                        int sb = msgBox.exec();
+                        if(sb == QMessageBox::YesToAll) {
+                              overwrite = true;
+                              }
+                        else if (sb == QMessageBox::NoToAll) {
+                              noToAll = true;
+                              continue;
+                              }
+                        else if (sb == QMessageBox::No)
+                              continue;
+                        }
+                  }
             rv = printer.save(fileName, "png");
             if (!rv)
                   break;

@@ -46,7 +46,7 @@ QT4_WRAP_UI (ui_headers
       fretdprops.ui stafftype.ui sectionbreak.ui  bend.ui tremolobar.ui textproperties.ui
       editpitch.ui editstringdata.ui editraster.ui mediadialog.ui textstyle.ui album.ui layer.ui
       omrpanel.ui startdialog.ui masterpalette.ui pluginManager.ui harmonyedit.ui pathlistdialog.ui
-      note_groups.ui importmidi_panel.ui
+      note_groups.ui importmidi_panel.ui resourceManager.ui
 
       debugger/barline.ui
       debugger/harmony.ui
@@ -151,9 +151,11 @@ QT4_WRAP_CPP (mocs
       paletteBoxButton.h pathlistdialog.h exampleview.h noteGroups.h inspector/inspectorTextLine.h
       importmidi_panel.h importmidi_operations.h
       importmidi_opmodel.h importmidi_trmodel.h importmidi_opdelegate.h
-      importmidi_meter.h importmidi_operation.h importmidi_quant.h importmidi_chord.h
-      importmidi_tuplet.h importmidi_inner.h importmidi_data.h
-      debugger/debugger.h
+      importmidi_operation.h importmidi_quant.h importmidi_chord.h
+      importmidi_inner.h importmidi_data.h importmidi_swing.h
+      debugger/debugger.h importmidi_fraction.h importmidi_drum.h
+      importmidi_lrhand.h importmidi_lyrics.h importmidi_trview.h
+      resourceManager.h downloadUtils.h
       ${OMR_MOCS}
       ${SCRIPT_MOCS}
       )
@@ -192,9 +194,8 @@ endif (USE_JACK)
 
 if (APPLE)
         set (ExecutableName mscore MACOSX_BUNDLE)
-        set (MACOSX_BUNDLE_INFO_STRING MuseScore prerelease for Mac OSX)
         set (MACOSX_BUNDLE_ICON_FILE      mscore.icns)
-        set (MACOSX_BUNDLE_GUI_IDENTIFIER net.sourceforge.mscore)
+        set (MACOSX_BUNDLE_GUI_IDENTIFIER org.musescore.MuseScore)
         set (MACOSX_BUNDLE_LONG_VERSION_STRING ${MUSESCORE_VERSION_FULL})
         set (MACOSX_BUNDLE_BUNDLE_NAME MuseScore)
         set (MACOSX_BUNDLE_SHORT_VERSION_STRING ${MUSESCORE_VERSION})
@@ -267,7 +268,10 @@ add_executable ( ${ExecutableName}
       importmidi_panel.cpp importmidi_operations.cpp miconengine.cpp
       importmidi_opmodel.cpp importmidi_trmodel.cpp importmidi_opdelegate.cpp
       importmidi_meter.cpp importmidi_quant.cpp importmidi_tuplet.cpp importmidi_chord.cpp
-      importmidi_data.cpp
+      importmidi_data.cpp importmidi_swing.cpp importmidi_fraction.cpp importmidi_drum.cpp
+      importmidi_clef.cpp importmidi_lrhand.cpp importmidi_lyrics.cpp importmidi_trview.cpp
+      importmidi_inner.cpp
+      resourceManager.cpp downloadUtils.cpp
 
       ${OMR_FILES}
       ${AUDIO}
@@ -391,6 +395,8 @@ if (MINGW)
       ${CROSSQT}/bin/Qt5PrintSupport.dll
       ${CROSSQT}/bin/Qt5OpenGL.dll
       ${CROSSQT}/bin/Qt5Sensors.dll
+      ${CROSSQT}/bin/Qt5Multimedia.dll
+      ${CROSSQT}/bin/Qt5MultimediaWidgets.dll
       ${CROSSQT}/bin/icuin51.dll
       ${CROSSQT}/bin/icuuc51.dll
       ${CROSSQT}/bin/icudt51.dll
@@ -495,6 +501,7 @@ if (APPLE)
       ../fonts/FreeSans.ttf
       ../fonts/mscoreTab.ttf
       ../fonts/mscore-BC.ttf
+      ../fonts/bravura/Bravura.otf
      DESTINATION ${Mscore_SHARE_NAME}${Mscore_INSTALL_NAME}fonts
      )
      install(DIRECTORY

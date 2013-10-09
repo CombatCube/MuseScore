@@ -190,7 +190,7 @@ void System::layout(qreal xo1)
                               b->setLevel(i);
                               b->setBracketType(s->bracket(i));
                               b->setSpan(s->bracketSpan(i));
-                              add(b);
+                              score()->undoAddElement(b);
                               }
                         else
                               _brackets.append(b);
@@ -209,7 +209,9 @@ void System::layout(qreal xo1)
                   }
             }
 
-      qDeleteAll(bl);
+      for (Bracket* b : bl)
+            score()->undoRemoveElement(b);
+//      qDeleteAll(bl);   // delete unused brackets
 
       //---------------------------------------------------
       //  layout  SysStaff and StaffLines
@@ -969,7 +971,7 @@ void System::scanElements(void* data, void (*func)(void*, Element*), bool all)
                   func(data, t);
             ++idx;
             }
-      foreach(SpannerSegment* ss, _spannerSegments) {
+      foreach (SpannerSegment* ss, _spannerSegments) {
             int staffIdx = ss->spanner()->staffIdx();
             if (staffIdx == -1) {
                   qDebug("System::scanElements: staffIDx == -1: %s %p", ss->spanner()->name(), ss->spanner());
@@ -977,11 +979,11 @@ void System::scanElements(void* data, void (*func)(void*, Element*), bool all)
                   }
             bool v = true;
             Spanner* spanner = ss->spanner();
-            if(spanner->anchor() == Spanner::ANCHOR_SEGMENT || spanner->anchor() == Spanner::ANCHOR_CHORD) {
+            if (spanner->anchor() == Spanner::ANCHOR_SEGMENT || spanner->anchor() == Spanner::ANCHOR_CHORD) {
                   Element* se = spanner->startElement();
                   Element* ee = spanner->endElement();
                   bool v1 = true;
-                  if(se && (se->type() == Element::CHORD || se->type() == Element::REST)) {
+                  if (se && (se->type() == Element::CHORD || se->type() == Element::REST)) {
                         ChordRest* cr = static_cast<ChordRest*>(se);
                         Measure* m    = cr->measure();
                         MStaff* mstaff = m->mstaff(cr->staffIdx());
@@ -997,15 +999,16 @@ void System::scanElements(void* data, void (*func)(void*, Element*), bool all)
                   v = v1 || v2; // hide spanner if both chords are hidden
                   }
             if (all || (score()->staff(staffIdx)->show() && v) || (spanner->type() == Element::VOLTA))
-                  func(data, ss);
+                  ss->scanElements(data, func, all);
             }
       }
 
 //---------------------------------------------------------
-//   staffY
+//   staffYpage
+//    return page coordinates
 //---------------------------------------------------------
 
-qreal System::staffY(int staffIdx) const
+qreal System::staffYpage(int staffIdx) const
       {
       if (_staves.size() <= staffIdx) {
             qDebug("staffY: staves %d <= staffIdx %d, vbox %d",

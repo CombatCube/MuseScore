@@ -54,7 +54,7 @@ p, li { white-space: pre-wrap; }
 <p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><!--StartFragment-->Gtr 2<!--EndFragment--></p></body></html>
           </longName>
         <trackName></trackName>
-        <Tablature>
+        <StringData>
           <frets>24</frets>
           <string>40</string>
           <string>45</string>
@@ -62,7 +62,7 @@ p, li { white-space: pre-wrap; }
           <string>55</string>
           <string>59</string>
           <string>64</string>
-          </Tablature>
+          </StringData>
         <Channel name="normal">
           <program value="29"/>
           <controller ctrl="7" value="63"/>
@@ -129,7 +129,7 @@ p, li { white-space: pre-wrap; }
           <Beam>1</Beam>
           <Note>
             <lid>6</lid>
-            <Tie>
+            <Tie id="2">
               </Tie>
             <pitch>67</pitch>
             <tpc>15</tpc>
@@ -144,6 +144,7 @@ p, li { white-space: pre-wrap; }
           <Beam>1</Beam>
           <Note>
             <lid>8</lid>
+            <endSpanner id="2"/>
             <pitch>67</pitch>
             <tpc>15</tpc>
             <fret>8</fret>
@@ -211,12 +212,12 @@ p, li { white-space: pre-wrap; }
       <Part>
         <Staff id="1">
           <linkedTo>1</linkedTo>
-          <type>0</type>
+          <type>14</type>
           <bracket type="0" span="2"/>
           </Staff>
         <Staff id="2">
           <linkedTo>1</linkedTo>
-          <type>1</type>
+          <type>5</type>
           <bracket type="-1" span="0"/>
           </Staff>
         <trackName></trackName>
@@ -228,7 +229,7 @@ p, li { white-space: pre-wrap; }
 <p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><!--StartFragment-->Gtr 2<!--EndFragment--></p></body></html>
             </longName>
           <trackName></trackName>
-          <Tablature>
+          <StringData>
             <frets>24</frets>
             <string>40</string>
             <string>45</string>
@@ -236,7 +237,7 @@ p, li { white-space: pre-wrap; }
             <string>55</string>
             <string>59</string>
             <string>64</string>
-            </Tablature>
+            </StringData>
           <Channel name="normal">
             <program value="29"/>
             <controller ctrl="7" value="63"/>
@@ -304,7 +305,7 @@ p, li { white-space: pre-wrap; }
             <Beam>2</Beam>
             <Note>
               <lid>6</lid>
-              <Tie>
+              <Tie id="3">
                 </Tie>
               <pitch>67</pitch>
               <tpc>15</tpc>
@@ -319,6 +320,7 @@ p, li { white-space: pre-wrap; }
             <Beam>2</Beam>
             <Note>
               <lid>8</lid>
+              <endSpanner id="3"/>
               <pitch>67</pitch>
               <tpc>15</tpc>
               <fret>8</fret>
@@ -386,7 +388,7 @@ p, li { white-space: pre-wrap; }
             <Beam>3</Beam>
             <Note>
               <lid>6</lid>
-              <Tie>
+              <Tie id="4">
                 </Tie>
               <pitch>67</pitch>
               <tpc>15</tpc>
@@ -401,6 +403,7 @@ p, li { white-space: pre-wrap; }
             <Beam>3</Beam>
             <Note>
               <lid>8</lid>
+              <endSpanner id="4"/>
               <pitch>67</pitch>
               <tpc>15</tpc>
               <fret>8</fret>

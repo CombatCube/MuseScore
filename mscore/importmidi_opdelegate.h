@@ -9,7 +9,10 @@ class OperationsDelegate : public QStyledItemDelegate
       Q_OBJECT
 
    public:
-      explicit OperationsDelegate(QWidget *appWindow);
+      explicit OperationsDelegate(QWidget *appWindow, bool rightArrowAlign);
+      void paint(QPainter *painter,
+                 const QStyleOptionViewItem &option,
+                 const QModelIndex &index) const;
       QWidget* createEditor(QWidget *parent,
                             const QStyleOptionViewItem &option,
                             const QModelIndex &index) const;
@@ -22,6 +25,7 @@ class OperationsDelegate : public QStyledItemDelegate
 
    private:
       QWidget *appWindow;
+      bool rightArrowAlign;
       };
 
 } // namespace Ms

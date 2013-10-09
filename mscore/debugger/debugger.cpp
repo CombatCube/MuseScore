@@ -40,6 +40,7 @@
 #include "libmscore/hook.h"
 #include "libmscore/dynamic.h"
 #include "libmscore/slur.h"
+#include "libmscore/tie.h"
 #include "libmscore/lyrics.h"
 #include "libmscore/volta.h"
 #include "libmscore/line.h"
@@ -66,6 +67,7 @@
 #include "libmscore/pitchspelling.h"
 #include "libmscore/chordlist.h"
 #include "libmscore/bracket.h"
+#include "libmscore/trill.h"
 
 namespace Ms {
 
@@ -348,6 +350,60 @@ static void addChord(ElementItem* sei, Chord* chord)
       }
 
 //---------------------------------------------------------
+//   addMeasure
+//---------------------------------------------------------
+
+void Debugger::addMeasure(ElementItem* mi, Measure* measure)
+      {
+      int staves = cs->nstaves();
+      int tracks = staves * VOICES;
+      foreach (MStaff* ms, *measure->staffList()) {
+            if (ms->_vspacerUp)
+                  new ElementItem(mi, ms->_vspacerUp);
+            if (ms->_vspacerDown)
+                  new ElementItem(mi, ms->_vspacerDown);
+            }
+      for (Segment* segment = measure->first(); segment; segment = segment->next()) {
+            ElementItem* segItem = new ElementItem(mi, segment);
+            for (int track = 0; track < tracks; ++track) {
+                  Element* e = segment->element(track);
+                  if (!e)
+                        continue;
+                  ElementItem* sei = new ElementItem(segItem, e);
+                  if (e->type() == Element::CHORD)
+                        addChord(sei, static_cast<Chord*>(e));
+                  else if (e->isChordRest()) {
+                        ChordRest* cr = static_cast<ChordRest*>(e);
+                        if (cr->beam() && cr->beam()->elements().front() == cr)
+                              new ElementItem(sei, cr->beam());
+                        foreach(Lyrics* lyrics, cr->lyricsList()) {
+                              if (lyrics)
+                                    new ElementItem(sei, lyrics);
+                              }
+                        DurationElement* de = cr;
+                        while (de->tuplet() && de->tuplet()->elements().front() == de) {
+                              new ElementItem(sei, de->tuplet());
+                              de = de->tuplet();
+                              }
+                        }
+                  }
+
+            foreach(Element* s, segment->annotations()) {
+                  if (s->type() == Element::SYMBOL || s->type() == Element::IMAGE)
+                        addBSymbol(segItem, static_cast<BSymbol*>(s));
+                  else if (s->type() == Element::FRET_DIAGRAM) {
+                        ElementItem* fdi = new ElementItem(segItem, s);
+                        FretDiagram* fd = static_cast<FretDiagram*>(s);
+                        if (fd->harmony())
+                              new ElementItem(fdi, fd->harmony());
+                        }
+                  else
+                        new ElementItem(segItem, s);
+                  }
+            }
+      }
+
+//---------------------------------------------------------
 //   updateList
 //---------------------------------------------------------
 
@@ -367,11 +423,15 @@ void Debugger::updateList(Score* s)
 
       QTreeWidgetItem* li = new QTreeWidgetItem(list, Element::INVALID);
       li->setText(0, "Global");
-      for (auto i : s->spanner())
-            new ElementItem(li, i.second);
+      for (auto i : s->spanner()) {
+            ElementItem* it = new ElementItem(li, i.second);
+            if (i.second->type() == Element::TRILL) {
+                  Trill* trill = static_cast<Trill*>(i.second);
+                  if (trill->accidental())
+                        new ElementItem(it, trill->accidental());
+                  }
+            }
 
-      int staves = cs->nstaves();
-      int tracks = staves * VOICES;
       foreach (Page* page, cs->pages()) {
             ElementItem* pi = new ElementItem(list, page);
 
@@ -395,69 +455,11 @@ void Debugger::updateList(Score* s)
                         if (mb->type() != Element::MEASURE)
                               continue;
                         Measure* measure = (Measure*) mb;
-                        foreach (MStaff* ms, *measure->staffList()) {
-                              if (ms->_vspacerUp)
-                                    new ElementItem(si, ms->_vspacerUp);
-                              if (ms->_vspacerDown)
-                                    new ElementItem(si, ms->_vspacerDown);
+                        if (measure->mmRest()) {
+                              ElementItem* mmi = new ElementItem(mi, measure->mmRest());
+                              addMeasure(mmi, measure->mmRest());
                               }
-//                        if (measure->noText())
-//                              new ElementItem(mi, measure->noText());
-                        for (Segment* segment = measure->first(); segment; segment = segment->next()) {
-                              ElementItem* segItem = new ElementItem(mi, segment);
-                              for (int track = 0; track < tracks; ++track) {
-                                    Element* e = segment->element(track);
-                                    if (!e)
-                                          continue;
-                                    ElementItem* sei = new ElementItem(segItem, e);
-                                    if (e->type() == Element::CHORD)
-                                          addChord(sei, static_cast<Chord*>(e));
-                                    else if (e->isChordRest()) {
-                                          ChordRest* cr = static_cast<ChordRest*>(e);
-                                          if (cr->beam() && cr->beam()->elements().front() == cr)
-                                                new ElementItem(sei, cr->beam());
-                                          foreach(Lyrics* lyrics, cr->lyricsList()) {
-                                                if (lyrics)
-                                                      new ElementItem(sei, lyrics);
-                                                }
-                                          DurationElement* de = cr;
-                                          while (de->tuplet() && de->tuplet()->elements().front() == de) {
-                                                new ElementItem(sei, de->tuplet());
-                                                de = de->tuplet();
-                                                }
-                                          }
-                                    }
-
-                              foreach(Element* s, segment->annotations()) {
-                                    if (s->type() == Element::SYMBOL || s->type() == Element::IMAGE)
-                                          addBSymbol(segItem, static_cast<BSymbol*>(s));
-                                    else if (s->type() == Element::FRET_DIAGRAM) {
-                                          ElementItem* fdi = new ElementItem(segItem, s);
-                                          FretDiagram* fd = static_cast<FretDiagram*>(s);
-                                          if (fd->harmony())
-                                                new ElementItem(fdi, fd->harmony());
-                                          }
-                                    else
-                                          new ElementItem(segItem, s);
-                                    }
-#if 0 // TODO
-                              for (int i = 0; i < staves; ++i) {
-                                    foreach(Lyrics* l, *(segment->lyricsList(i))) {
-                                          if (l)
-                                                new ElementItem(segItem, l);
-                                          }
-                                    }
-#endif
-                              }
-                        if (mb == system->measures().back())
-                              break;
-#if 0 // TODOxxx
-                        foreach(Tuplet* tuplet, *measure->tuplets()) {
-					ElementItem* item = new ElementItem(mi, tuplet);
-                              if (tuplet->number())
-                                    new ElementItem(item, tuplet->number());
-                              }
-#endif
+                        addMeasure(mi, measure);
                         }
                   }
             }
@@ -684,6 +686,7 @@ MeasureView::MeasureView()
       connect(mb.sel, SIGNAL(itemClicked(QTreeWidgetItem*,int)), SLOT(elementClicked(QTreeWidgetItem*)));
       connect(mb.nextButton, SIGNAL(clicked()), SLOT(nextClicked()));
       connect(mb.prevButton, SIGNAL(clicked()), SLOT(prevClicked()));
+      connect(mb.mmRest, SIGNAL(clicked()), SLOT(mmRestClicked()));
       }
 
 //---------------------------------------------------------
@@ -705,6 +708,15 @@ void MeasureView::prevClicked()
       }
 
 //---------------------------------------------------------
+//   mmRestClicked
+//---------------------------------------------------------
+
+void MeasureView::mmRestClicked()
+      {
+      emit elementChanged(((Measure*)element())->mmRest());
+      }
+
+//---------------------------------------------------------
 //   setElement
 //---------------------------------------------------------
 
@@ -715,7 +727,6 @@ void MeasureView::setElement(Element* e)
 
       mb.segments->setValue(m->size());
       mb.staves->setValue(m->staffList()->size());
-//TODOxxx      mb.tuplets->setValue(m->tuplets()->size());
       mb.measureNo->setValue(m->no());
       mb.noOffset->setValue(m->noOffset());
       mb.stretch->setValue(m->userStretch());
@@ -730,7 +741,7 @@ void MeasureView::setElement(Element* e)
       mb.endBarLineType->setValue(m->endBarLineType());
       mb.endBarLineGenerated->setChecked(m->endBarLineGenerated());
       mb.endBarLineVisible->setChecked(m->endBarLineVisible());
-      mb.multiMeasure->setValue(m->multiMeasure());
+      mb.mmRestCount->setValue(m->mmRestCount());
       mb.timesig->setText(m->timesig().print());
       mb.len->setText(m->len().print());
       mb.tick->setValue(m->tick());
@@ -745,6 +756,7 @@ void MeasureView::setElement(Element* e)
             }
       mb.prevButton->setEnabled(m->prev());
       mb.nextButton->setEnabled(m->next());
+      mb.mmRest->setEnabled(m->mmRest() != 0);
       }
 
 //---------------------------------------------------------
@@ -1454,7 +1466,7 @@ void SpannerView::setElement(Element* e)
       Spanner* spanner = static_cast<Spanner*>(e);
       ShowElementBase::setElement(e);
       sp.tick->setValue(spanner->tick());
-      sp.tickLen->setValue(spanner->tickLen());
+      sp.tick2->setValue(spanner->tick2());
       sp.anchor->setCurrentIndex(int(spanner->anchor()));
 
       sp.segments->clear();
@@ -1748,6 +1760,7 @@ void ShowElementBase::setElement(Element* e)
       eb.offsety->setValue(e->userOff().y());
       eb.readPosX->setValue(e->readPos().x());
       eb.readPosY->setValue(e->readPos().y());
+      eb.placement->setCurrentIndex(int(e->placement()));
 
 #if 0
       Align a = e->align();
@@ -2268,6 +2281,16 @@ SlurSegmentView::SlurSegmentView()
    : ShowElementBase()
       {
       ss.setupUi(addWidget());
+      connect(ss.slurTie, SIGNAL(clicked()), SLOT(slurTieClicked()));
+      }
+
+//---------------------------------------------------------
+//   stemClicked
+//---------------------------------------------------------
+
+void SlurSegmentView::slurTieClicked()
+      {
+      emit elementChanged(static_cast<SlurSegment*>(element())->slurTie());
       }
 
 //---------------------------------------------------------
@@ -2297,6 +2320,7 @@ void SlurSegmentView::setElement(Element* e)
       ss.up4py->setValue(s->getUps(GRIP_END)->p.y());
       ss.up4ox->setValue(s->getUps(GRIP_END)->off.x());
       ss.up4oy->setValue(s->getUps(GRIP_END)->off.y());
+
       }
 
 //---------------------------------------------------------
@@ -2321,6 +2345,7 @@ void AccidentalView::setElement(Element* e)
       acc.hasBracket->setChecked(s->hasBracket());
       acc.accAuto->setChecked(s->role() == Accidental::ACC_AUTO);
       acc.accUser->setChecked(s->role() == Accidental::ACC_USER);
+      acc.small->setChecked(s->small());
       }
 
 //---------------------------------------------------------
@@ -2342,7 +2367,7 @@ void ClefView::setElement(Element* e)
       Clef* c = static_cast<Clef*>(e);
       ShowElementBase::setElement(e);
 
-      clef.clefType->setValue(c->clefType());
+      clef.clefType->setValue(int(c->clefType()));
       clef.showCourtesy->setChecked(c->showCourtesy());
       clef.small->setChecked(c->small());
 
@@ -2533,6 +2558,17 @@ void TextLineSegmentView::setElement(Element* e)
       lb.pos2y->setValue(vs->pos2().y());
       lb.offset2x->setValue(vs->userOff2().x());
       lb.offset2y->setValue(vs->userOff2().y());
+      connect(lb.line, SIGNAL(clicked()), SLOT(lineClicked()));
+      }
+
+//---------------------------------------------------------
+//   lineClicked
+//---------------------------------------------------------
+
+void TextLineSegmentView::lineClicked()
+      {
+      Spanner* sp = static_cast<SpannerSegment*>(element())->spanner();
+      emit elementChanged(sp);
       }
 
 //---------------------------------------------------------
@@ -2544,6 +2580,7 @@ SystemView::SystemView()
       {
       mb.setupUi(addWidget());
       connect(mb.spanner, SIGNAL(itemClicked(QTreeWidgetItem*,int)), SLOT(elementClicked(QTreeWidgetItem*)));
+      connect(mb.measureList, SIGNAL(itemClicked(QListWidgetItem*)), SLOT(measureClicked(QListWidgetItem*)));
       }
 
 //---------------------------------------------------------
@@ -2562,6 +2599,11 @@ void SystemView::setElement(Element* e)
             item->setData(0, Qt::UserRole, QVariant::fromValue<void*>(p));
             mb.spanner->addTopLevelItem(item);
             }
+      mb.measureList->clear();
+      for (MeasureBase* m : vs->measures()) {
+            ElementListWidgetItem* item = new ElementListWidgetItem(m);
+            mb.measureList->addItem(item);
+            }
       }
 
 //---------------------------------------------------------
@@ -2574,6 +2616,15 @@ void SystemView::elementClicked(QTreeWidgetItem* item)
       emit elementChanged(e);
       }
 
+//---------------------------------------------------------
+//   measureClicked
+//---------------------------------------------------------
+
+void SystemView::measureClicked(QListWidgetItem* i)
+      {
+      ElementListWidgetItem* item = (ElementListWidgetItem*)i;
+      emit elementChanged(item->element());
+      }
 
 }
 

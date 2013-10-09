@@ -224,9 +224,32 @@ Segment* Segment::next1() const
       return m->first();
       }
 
+//---------------------------------------------------------
+//   next1MM
+//---------------------------------------------------------
+
+Segment* Segment::next1MM() const
+      {
+      if (next())
+            return next();
+      Measure* m = measure()->nextMeasureMM();
+      if (m == 0)
+            return 0;
+      return m->first();
+      }
+
 Segment* Segment::next1(SegmentTypes types) const
       {
       for (Segment* s = next1(); s; s = s->next1()) {
+            if (s->segmentType() & types)
+                  return s;
+            }
+      return 0;
+      }
+
+Segment* Segment::next1MM(SegmentTypes types) const
+      {
+      for (Segment* s = next1MM(); s; s = s->next1MM()) {
             if (s->segmentType() & types)
                   return s;
             }
@@ -277,9 +300,28 @@ Segment* Segment::prev1() const
       return m->last();
       }
 
+Segment* Segment::prev1MM() const
+      {
+      if (prev())
+            return prev();
+      Measure* m = measure()->prevMeasureMM();
+      if (m == 0)
+            return 0;
+      return m->last();
+      }
+
 Segment* Segment::prev1(SegmentTypes types) const
       {
       for (Segment* s = prev1(); s; s = s->prev1()) {
+            if (s->segmentType() & types)
+                  return s;
+            }
+      return 0;
+      }
+
+Segment* Segment::prev1MM(SegmentTypes types) const
+      {
+      for (Segment* s = prev1MM(); s; s = s->prev1MM()) {
             if (s->segmentType() & types)
                   return s;
             }

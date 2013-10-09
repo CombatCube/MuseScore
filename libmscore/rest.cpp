@@ -73,9 +73,12 @@ void Rest::draw(QPainter* painter) const
 
       painter->setPen(curColor());
 
-      if (parent() && measure() && measure()->multiMeasure()) {
+      if (parent() && measure() && measure()->isMMRest()) {
+            //only on voice 1
+            if((track() % VOICES) != 0)
+                  return;
             Measure* m = measure();
-            int n      = m->multiMeasure();
+            int n      = m->mmRestCount();
             qreal pw = _spatium * .7;
             QPen pen(painter->pen());
             pen.setWidthF(pw);
@@ -106,16 +109,14 @@ void Rest::draw(QPainter* painter) const
             glyphs.setPositions(adv);
             glyphs.setRawFont(rfont);
             QRectF r = glyphs.boundingRect();
-            y  = -_spatium * .5;
+            y  = -_spatium * .5 - (staff()->height()*.5);
             painter->drawGlyphRun(QPointF((x2 - x1) * .5 + x1 - r.width() * .5, y), glyphs);
 #else
             QFont font = fontId2font(0);
             font.setPixelSize(lrint(20.0 * spatium()/(PPI * SPATIUM20)));
             painter->setFont(font);
             QFontMetricsF fm(font);
-            // y  = -_spatium * .5 - (staff()->height()*.5) - fm.ascent();
-            y  = -_spatium * .5 - fm.ascent();
-
+            y  = -_spatium * .5 - (staff()->height()*.5) - fm.ascent();
             painter->drawText(QRectF(center(x1, x2), y, .0, .0),
                Qt::AlignHCenter|Qt::TextDontClip,
                QString("%1").arg(n));
@@ -211,6 +212,8 @@ bool Rest::acceptDrop(MuseScoreView*, const QPointF&, Element* e) const
          ) {
             return true;
             }
+      if(type == REPEAT_MEASURE && durationType().type() == TDuration::V_MEASURE)
+            return true;
       return false;
       }
 
@@ -253,6 +256,12 @@ Element* Rest::drop(const DropData& data)
                         }
                   delete e;
                   }
+                  break;
+            case REPEAT_MEASURE:
+                  delete e;
+                  if (durationType().type() == TDuration::V_MEASURE) {
+                        measure()->cmdInsertRepeatMeasure(staffIdx());
+                        }
                   break;
             default:
                   return ChordRest::drop(data);
@@ -310,7 +319,7 @@ void Rest::layout()
       {
       _space.setLw(0.0);
 
-      if (parent() && measure() && measure()->multiMeasure()) {
+      if (parent() && measure() && measure()->isMMRest()) {
             _space.setRw(point(score()->styleS(ST_minMMRestWidth)));
             return;
             }
@@ -319,12 +328,21 @@ void Rest::layout()
       if (staff() && staff()->isTabStaff()) {
             StaffTypeTablature* tab = (StaffTypeTablature*)staff()->staffType();
             // if rests are shown and note values are shown as duration symbols
-            if(tab->showRests() &&tab->genDurations()) {
+            if(tab->showRests() && tab->genDurations()) {
+                  TDuration::DurationType type = durationType().type();
+                  int                     dots = durationType().dots();
+                  // if rest is whole measure, convert into actual type and dot values
+                  if (type == TDuration::V_MEASURE) {
+                        int       ticks = measure()->ticks();
+                        TDuration dur   = TDuration(Fraction::fromTicks(ticks)).type();
+                        type = dur.type();
+                        dots = dur.dots();
+                        }
                   // symbol needed; if not exist, create, if exists, update duration
                   if (!_tabDur)
-                        _tabDur = new TabDurationSymbol(score(), tab, durationType().type(), dots());
+                        _tabDur = new TabDurationSymbol(score(), tab, type, dots);
                   else
-                        _tabDur->setDuration(durationType().type(), dots(), tab);
+                        _tabDur->setDuration(type, dots, tab);
                   _tabDur->setParent(this);
 // needed?        _tabDur->setTrack(track());
                   _tabDur->layout();
@@ -362,8 +380,35 @@ void Rest::layout()
             stepOffset = staff()->staffType()->stepOffset();
       int line       = lrint(userOff().y() / _spatium); //  + ((staff()->lines()-1) * 2);
       qreal lineDist = staff() ? staff()->staffType()->lineDistance().val() : 1.0;
-      int lineOffset = 0;
 
+      int lines = staff() ? staff()->lines() : 5;
+      int lineOffset = computeLineOffset();
+
+      int yo;
+      _sym = getSymbol(durationType().type(), line + lineOffset/2, lines, &yo);
+      layoutArticulations();
+      rypos() = (qreal(yo) + qreal(lineOffset + stepOffset) * .5) * lineDist * _spatium;
+
+      Spatium rs;
+      if (dots()) {
+            rs = Spatium(score()->styleS(ST_dotNoteDistance)
+               + dots() * score()->styleS(ST_dotDotDistance));
+            }
+      if (dots()) {
+            rs = Spatium(score()->styleS(ST_dotNoteDistance)
+               + dots() * score()->styleS(ST_dotDotDistance));
+            }
+      setbbox(symbols[score()->symIdx()][_sym].bbox(magS()));
+      _space.setRw(width() + point(rs));
+      }
+
+//---------------------------------------------------------
+//   centerX
+//---------------------------------------------------------
+
+int Rest::computeLineOffset()
+      {
+      int lineOffset = 0;
       int lines = staff() ? staff()->lines() : 5;
       if (segment() && measure() && measure()->mstaff(staffIdx())->hasVoices) {
             // move rests in a multi voice context
@@ -434,23 +479,7 @@ void Rest::layout()
                         break;
                   }
             }
-
-      int yo;
-      _sym = getSymbol(durationType().type(), line + lineOffset/2, lines, &yo);
-      layoutArticulations();
-      rypos() = (qreal(yo) + qreal(lineOffset + stepOffset) * .5) * lineDist * _spatium;
-
-      Spatium rs;
-      if (dots()) {
-            rs = Spatium(score()->styleS(ST_dotNoteDistance)
-               + dots() * score()->styleS(ST_dotDotDistance));
-            }
-      if (dots()) {
-            rs = Spatium(score()->styleS(ST_dotNoteDistance)
-               + dots() * score()->styleS(ST_dotDotDistance));
-            }
-      setbbox(symbols[score()->symIdx()][_sym].bbox(magS()));
-      _space.setRw(width() + point(rs));
+      return lineOffset;
       }
 
 //---------------------------------------------------------
@@ -498,7 +527,7 @@ void Rest::setMMWidth(qreal val)
       {
       _mmWidth = val;
       Segment* s = segment();
-      if (s && s->measure() && s->measure()->multiMeasure()) {
+      if (s && s->measure() && s->measure()->isMMRest()) {
             qreal _spatium = spatium();
             qreal h = _spatium * 2;
             qreal w = _mmWidth;                       // + 1*lineWidth of vertical lines

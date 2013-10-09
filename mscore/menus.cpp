@@ -3,7 +3,7 @@
 //  Linux Music Score Editor
 //  $Id: menus.cpp 5651 2012-05-19 15:57:26Z lasconic $
 //
-//  Copyright (C) 2002-2011 Werner Schweer and others
+//  Copyright (C) 2002-2013 Werner Schweer and others
 //
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License version 2.
@@ -172,7 +172,11 @@ Palette* MuseScore::newDynamicsPalette()
       sp->setGrid(42, 28);
       sp->setDrawGrid(true);
 
-      const char* array[8] = { "ppp", "pp", "p", "mp", "mf", "f", "ff", "fff" };
+      const char* array[] = {
+            "ppp", "pp", "p", "mp", "mf", "f", "ff", "fff",
+            "fp", "sf", "sfz", "sff", "sffz", "sfp", "sfpp",
+            "rfz", "rf", "fz", "m", "r", "s", "z", "n"
+            };
       for (const char* c : array) {
             Dynamic* dynamic = new Dynamic(gscore);
             dynamic->setDynamicType(c);
@@ -365,17 +369,17 @@ Palette* MuseScore::newBreaksPalette()
       sp->setDrawGrid(true);
 
       LayoutBreak* lb = new LayoutBreak(gscore);
-      lb->setLayoutBreakType(LAYOUT_BREAK_LINE);
+      lb->setLayoutBreakType(LayoutBreak::LINE);
       PaletteCell* cell = sp->append(lb, tr("Line break"));
       cell->mag = 1.2;
 
       lb = new LayoutBreak(gscore);
-      lb->setLayoutBreakType(LAYOUT_BREAK_PAGE);
+      lb->setLayoutBreakType(LayoutBreak::PAGE);
       cell = sp->append(lb, tr("Page break"));
       cell->mag = 1.2;
 
       lb = new LayoutBreak(gscore);
-      lb->setLayoutBreakType(LAYOUT_BREAK_SECTION);
+      lb->setLayoutBreakType(LayoutBreak::SECTION);
       cell = sp->append(lb, tr("Section break"));
       cell->mag = 1.2;
 
@@ -434,14 +438,14 @@ Palette* MuseScore::newTremoloPalette()
       sp->setGrid(27, 40);
       sp->setDrawGrid(true);
       const char* tremoloName[] = {
-            QT_TR_NOOP("1/8 through stem"),
-            QT_TR_NOOP("1/16 through stem"),
-            QT_TR_NOOP("1/32 through stem"),
-            QT_TR_NOOP("1/64 through stem"),
-            QT_TR_NOOP("1/8 between notes"),
-            QT_TR_NOOP("1/16 between notes"),
-            QT_TR_NOOP("1/32 between notes"),
-            QT_TR_NOOP("1/64 between notes")
+            QT_TR_NOOP("Eighth through stem"),
+            QT_TR_NOOP("16th through stem"),
+            QT_TR_NOOP("32nd through stem"),
+            QT_TR_NOOP("64th through stem"),
+            QT_TR_NOOP("Eighth between notes"),
+            QT_TR_NOOP("16th between notes"),
+            QT_TR_NOOP("32nd between notes"),
+            QT_TR_NOOP("64th between notes")
             };
 
       for (int i = TREMOLO_R8; i <= TREMOLO_C64; ++i) {
@@ -530,10 +534,13 @@ Palette* MuseScore::newBracketsPalette()
       b2->setBracketType(BRACKET_BRACE);
       Bracket* b3 = new Bracket(gscore);
       b3->setBracketType(BRACKET_SQUARE);
+      Bracket* b4 = new Bracket(gscore);
+      b4->setBracketType(BRACKET_LINE);
 
       sp->append(b1, tr("Bracket"));
       sp->append(b2, tr("Brace"));
       sp->append(b3, tr("Square"));
+      sp->append(b4, tr("Line"));
 
       return sp;
       }
@@ -622,16 +629,16 @@ Palette* MuseScore::newClefsPalette()
       sp->setGrid(33, 60);
       sp->setYOffset(1.0);
       static const ClefType clefs[21] = {
-            CLEF_G, CLEF_G1, CLEF_G2, CLEF_G3, CLEF_G4,
-            CLEF_C1, CLEF_C2, CLEF_C3, CLEF_C4, CLEF_C5,
-            CLEF_F, CLEF_F_8VA, CLEF_F_15MA, CLEF_F8, CLEF_F15, CLEF_F_B, CLEF_F_C,
-            CLEF_PERC, CLEF_TAB, CLEF_TAB2, CLEF_PERC2
+            ClefType::G, ClefType::G1, ClefType::G2, ClefType::G3, ClefType::G4,
+            ClefType::C1, ClefType::C2, ClefType::C3, ClefType::C4, ClefType::C5,
+            ClefType::F, ClefType::F_8VA, ClefType::F_15MA, ClefType::F8, ClefType::F15, ClefType::F_B, ClefType::F_C,
+            ClefType::PERC, ClefType::TAB, ClefType::TAB2, ClefType::PERC2
             };
       for (int i = 0; i < 20; ++i) {
             ClefType j = clefs[i];
             Clef* k = new Ms::Clef(gscore);
             k->setClefType(ClefTypeList(j, j));
-            sp->append(k, qApp->translate("clefTable", clefTable[j].name));
+            sp->append(k, qApp->translate("clefTable", ClefInfo::name(j)));
             }
       return sp;
       }
@@ -667,9 +674,9 @@ Palette* MuseScore::newGraceNotePalette()
 Palette* MuseScore::newBagpipeEmbellishmentPalette()
       {
       Palette* sp = new Palette;
-      sp->setName(QT_TRANSLATE_NOOP("Palette", "Bagpipe Embellishments"));
+      sp->setName(QT_TRANSLATE_NOOP("Palette", "Bagpipe"));
       sp->setMag(0.8);
-      sp->setGrid(60, 70);
+      sp->setGrid(60, 80);
 
       for (int i = 0; i < BagpipeEmbellishment::nEmbellishments(); ++i) {
             BagpipeEmbellishment* b  = new BagpipeEmbellishment(gscore);
@@ -691,7 +698,7 @@ Palette* MuseScore::newLinesPalette()
       sp->setGrid(82, 23);
       sp->setDrawGrid(true);
 
-      qreal w = gscore->spatium() * 7;
+      qreal w = gscore->spatium() * 8;
 
       Slur* slur = new Slur(gscore);
       slur->setId(0);
@@ -744,24 +751,37 @@ Palette* MuseScore::newLinesPalette()
       sp->append(volta, QT_TRANSLATE_NOOP("Palette", "Seconda volta 2"));
 
       Ottava* ottava = new Ottava(gscore);
-      ottava->setOttavaType(Ottava::OTTAVA_8VA);
+      ottava->setOttavaType(OttavaType::OTTAVA_8VA);
       ottava->setLen(w);
       sp->append(ottava, QT_TRANSLATE_NOOP("Palette", "8va"));
 
       ottava = new Ottava(gscore);
-      ottava->setOttavaType(Ottava::OTTAVA_15MA);
+      ottava->setOttavaType(OttavaType::OTTAVA_8VB);
+      ottava->setLen(w);
+      ottava->setPlacement(Element::BELOW);
+      sp->append(ottava, QT_TRANSLATE_NOOP("Palette", "8vb"));
+
+      ottava = new Ottava(gscore);
+      ottava->setOttavaType(OttavaType::OTTAVA_15MA);
       ottava->setLen(w);
       sp->append(ottava, QT_TRANSLATE_NOOP("Palette", "15ma"));
 
       ottava = new Ottava(gscore);
-      ottava->setOttavaType(Ottava::OTTAVA_8VB);
+      ottava->setOttavaType(OttavaType::OTTAVA_15MB);
       ottava->setLen(w);
-      sp->append(ottava, QT_TRANSLATE_NOOP("Palette", "8vb"));
+      ottava->setPlacement(Element::BELOW);
+      sp->append(ottava, QT_TRANSLATE_NOOP("Palette", "15mb"));
 
       ottava = new Ottava(gscore);
-      ottava->setOttavaType(Ottava::OTTAVA_15MB);
+      ottava->setOttavaType(OttavaType::OTTAVA_22MA);
       ottava->setLen(w);
-      sp->append(ottava, QT_TRANSLATE_NOOP("Palette", "15mb"));
+      sp->append(ottava, QT_TRANSLATE_NOOP("Palette", "22ma"));
+
+      ottava = new Ottava(gscore);
+      ottava->setOttavaType(OttavaType::OTTAVA_22MB);
+      ottava->setLen(w);
+      sp->append(ottava, QT_TRANSLATE_NOOP("Palette", "22mb"));
+
 
       Pedal* pedal = new Pedal(gscore);
       pedal->setLen(w);
@@ -853,6 +873,37 @@ struct TempoPattern {
 //   newTempoPalette
 //---------------------------------------------------------
 
+Palette* MuseScore::newTempoPalette()
+      {
+      Palette* sp = new Palette;
+      sp->setName(QT_TRANSLATE_NOOP("Palette", "Tempo"));
+      sp->setMag(0.65);
+      sp->setGrid(60, 30);
+      sp->setDrawGrid(true);
+
+      static const TempoPattern tp[] = {
+            TempoPattern(QString("%1%2 = 80").    arg(QChar(0xd834)).arg(QChar(0xdd5f)), 80.0/60.0),      // 1/4
+            TempoPattern(QString("%1%2 = 80").    arg(QChar(0xd834)).arg(QChar(0xdd5e)), 80.0/30.0),      // 1/2
+            TempoPattern(QString("%1%2 = 80").    arg(QChar(0xd834)).arg(QChar(0xdd60)), 80.0/120.0),     // 1/8
+            TempoPattern(QString("%1%2%3%4 = 80").arg(QChar(0xd834)).arg(QChar(0xdd5f)).arg(QChar(0xd834)).arg(QChar(0xdd6d)), 120.0/60.0),  // dotted 1/4
+            TempoPattern(QString("%1%2%3%4 = 80").arg(QChar(0xd834)).arg(QChar(0xdd5e)).arg(QChar(0xd834)).arg(QChar(0xdd6d)), 120/30.0),    // dotted 1/2
+            TempoPattern(QString("%1%2%3%4 = 80").arg(QChar(0xd834)).arg(QChar(0xdd60)).arg(QChar(0xd834)).arg(QChar(0xdd6d)), 120/120.0)    // dotted 1/8
+            };
+      for (unsigned i = 0; i < sizeof(tp)/sizeof(*tp); ++i) {
+            TempoText* tt = new TempoText(gscore);
+            tt->setFollowText(true);
+            tt->setTrack(0);
+            tt->setTempo(tp[i].f);
+            tt->setText(tp[i].pattern);
+            sp->append(tt, tr("Tempo Text"), QString(), 1.5);
+            }
+      return sp;
+      }
+
+//---------------------------------------------------------
+//   newTextPalette
+//---------------------------------------------------------
+
 Palette* MuseScore::newTextPalette()
       {
       Palette* sp = new Palette;
@@ -885,23 +936,6 @@ Palette* MuseScore::newTextPalette()
       text->setTextStyleType(TEXT_STYLE_LYRICS_VERSE_NUMBER);
       text->setText(tr("1."));
       sp->append(text, tr("Lyrics Verse Number"));
-
-      static const TempoPattern tp[] = {
-            TempoPattern(QString("%1%2 = 80").    arg(QChar(0xd834)).arg(QChar(0xdd5f)), 80.0/60.0),      // 1/4
-            TempoPattern(QString("%1%2 = 80").    arg(QChar(0xd834)).arg(QChar(0xdd5e)), 80.0/30.0),      // 1/2
-            TempoPattern(QString("%1%2 = 80").    arg(QChar(0xd834)).arg(QChar(0xdd60)), 80.0/120.0),     // 1/8
-            TempoPattern(QString("%1%2%3%4 = 80").arg(QChar(0xd834)).arg(QChar(0xdd5f)).arg(QChar(0xd834)).arg(QChar(0xdd6d)), 120.0/60.0),  // dotted 1/4
-            TempoPattern(QString("%1%2%3%4 = 80").arg(QChar(0xd834)).arg(QChar(0xdd5e)).arg(QChar(0xd834)).arg(QChar(0xdd6d)), 120/30.0),    // dotted 1/2
-            TempoPattern(QString("%1%2%3%4 = 80").arg(QChar(0xd834)).arg(QChar(0xdd60)).arg(QChar(0xd834)).arg(QChar(0xdd6d)), 120/120.0)    // dotted 1/8
-            };
-      for (unsigned i = 0; i < sizeof(tp)/sizeof(*tp); ++i) {
-            TempoText* tt = new TempoText(gscore);
-            tt->setFollowText(true);
-            tt->setTrack(0);
-            tt->setTempo(tp[i].f);
-            tt->setText(tp[i].pattern);
-            sp->append(tt, tr("Tempo Text"), QString(), 1.5);
-            }
 
       Harmony* harmony = new Harmony(gscore);
       harmony->setText("C7");
@@ -1046,8 +1080,8 @@ void MuseScore::populatePalette()
 
 QMenu* MuseScore::genCreateMenu(QWidget* parent)
       {
-      QMenu* popup = new QMenu(tr("&Insert"), parent);
-      popup->setObjectName("Insert");
+      QMenu* popup = new QMenu(tr("&Add"), parent);
+      popup->setObjectName("Add");
 
       popup->addAction(getAction("instruments"));
 
@@ -1084,11 +1118,14 @@ QMenu* MuseScore::genCreateMenu(QWidget* parent)
       text->addAction(getAction("figured-bass"));
       text->addAction(getAction("tempo"));
 
-      popup->addSeparator();
-      popup->addAction(getAction("add-slur"));
-      popup->addAction(getAction("add-hairpin"));
-      popup->addAction(getAction("add-hairpin-reverse"));
-      popup->addAction(getAction("add-noteline"));
+      QMenu* lines = popup->addMenu(tr("&Lines"));
+      lines->addSeparator();
+      lines->addAction(getAction("add-slur"));
+      lines->addAction(getAction("add-hairpin"));
+      lines->addAction(getAction("add-hairpin-reverse"));
+      lines->addAction(getAction("add-8va"));
+      lines->addAction(getAction("add-8vb"));
+      lines->addAction(getAction("add-noteline"));
       return popup;
       }
 
@@ -1101,13 +1138,58 @@ void MuseScore::addTempo()
       ChordRest* cr = cs->getSelectedChordRest();
       if (!cr)
             return;
-      double bps = 120.0;
+//      double bps = 2.0;
+
+      SigEvent event = cs->sigmap()->timesig(cr->tick());
+      Fraction f = event.nominal();
+
+      QString text(QString("%1%2 = 80").arg(QChar(0xd834)).arg(QChar(0xdd5f)));
+      switch (f.denominator()) {
+            case 1:
+                  text = QString("%1%2 = 80").arg(QChar(0xd834)).arg(QChar(0xdd5d));
+                  break;
+            case 2:
+                  text = QString("%1%2 = 80").arg(QChar(0xd834)).arg(QChar(0xdd5e));
+                  break;
+            case 4:
+                  text = QString("%1%2 = 80").arg(QChar(0xd834)).arg(QChar(0xdd5f));
+                  break;
+            case 8:
+                  if(f.numerator() % 3 == 0)
+                        text = QString("%1%2%3%4 = 80").arg(QChar(0xd834)).arg(QChar(0xdd5f)).arg(QChar(0xd834)).arg(QChar(0xdd6d));
+                  else
+                        text = QString("%1%2 = 80").arg(QChar(0xd834)).arg(QChar(0xdd60));
+                  break;
+            case 16:
+                  if(f.numerator() % 3 == 0)
+                        text = QString("%1%2%3%4 = 80").arg(QChar(0xd834)).arg(QChar(0xdd60)).arg(QChar(0xd834)).arg(QChar(0xdd6d));
+                  else
+                        text = text = QString("%1%2 = 80").arg(QChar(0xd834)).arg(QChar(0xdd61));
+                  break;
+            case 32:
+                  if(f.numerator() % 3 == 0)
+                        text = QString("%1%2%3%4 = 80").arg(QChar(0xd834)).arg(QChar(0xdd61)).arg(QChar(0xd834)).arg(QChar(0xdd6d));
+                  else
+                        text = text = QString("%1%2 = 80").arg(QChar(0xd834)).arg(QChar(0xdd62));
+                  break;
+            case 64:
+                  if(f.numerator() % 3 == 0)
+                        text = QString("%1%2%3%4 = 80").arg(QChar(0xd834)).arg(QChar(0xdd62)).arg(QChar(0xd834)).arg(QChar(0xdd6d));
+                  else
+                        text = text = QString("%1%2 = 80").arg(QChar(0xd834)).arg(QChar(0xdd63));
+                  break;
+            default:
+                  break;
+            }
+
       TempoText* tt = new TempoText(cs);
       tt->setParent(cr->segment());
       tt->setTrack(cr->track());
-      tt->setText(tr("tempo"));
-      tt->setTempo(bps);
+      tt->setText(text);
+      tt->setFollowText(true);
+      //tt->setTempo(bps);
       cs->undoAddElement(tt);
+      cv->startEdit(tt);
       }
 }
 

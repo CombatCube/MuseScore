@@ -28,6 +28,7 @@
 
 #include "libmscore/fraction.h"
 #include "libmscore/mscore.h"
+#include "libmscore/pitchspelling.h"
 #include "importxmlfirstpass.h"
 #include "musicxmlsupport.h"
 
@@ -115,24 +116,6 @@ typedef  CreditWordsList::iterator iCreditWords;
 typedef  CreditWordsList::const_iterator ciCreditWords;
 
 //---------------------------------------------------------
-//   MusicXmlCreator
-//---------------------------------------------------------
-
-/**
- The MusicXML "creator" meta-data element.
-*/
-
-class MusicXmlCreator {
-      QString _type;
-      QString _text;
-
-public:
-      MusicXmlCreator(QString& tp, QString& txt) { _type = tp; _text = txt; }
-      QString crType() const { return _type; }
-      QString crText() const { return _text; }
-      };
-
-//---------------------------------------------------------
 //   JumpMarkerDesc
 //---------------------------------------------------------
 
@@ -151,6 +134,13 @@ public:
       };
 
 typedef QList<JumpMarkerDesc> JumpMarkerDescList;
+
+struct GraceNoteInfo {
+      NoteType type;
+      int pitch;
+      int tpc;
+      int len;
+};
 
 //---------------------------------------------------------
 //   MusicXml
@@ -189,9 +179,6 @@ class MusicXml {
       int divisions;                            ///< Current MusicXML divisions
       QVector<Tuplet*> tuplets;                 ///< Current tuplet for each track in the current part
 
-      QString composer;
-      QString poet;
-      QString translator;
       CreditWordsList credits;
       JumpMarkerDescList jumpsMarkers;
 
@@ -228,7 +215,7 @@ class MusicXml {
                     QMap<int, Lyrics*>& defyLyrics,
                     QList<Lyrics*>& unNumbrdLyrics);
       void xmlNotations(Note* note, ChordRest* cr, int trk, int ticks, QDomElement node);
-      void xmlNote(Measure*, int stave, const QString& partId, Beam*& beam, int& currentVoice, QDomElement node);
+      void xmlNote(Measure*, int stave, const QString& partId, Beam*& beam, int& currentVoice, QDomElement node, QList<GraceNoteInfo>&);
       void xmlHarmony(QDomElement node, int tick, Measure* m, int staff);
       int xmlClef(QDomElement, int staffIdx, Measure*);
       void readPageFormat(PageFormat* pf, QDomElement de, qreal conversion);

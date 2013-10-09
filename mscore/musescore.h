@@ -220,7 +220,8 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
       ScoreTab* tab1;
       ScoreTab* tab2;
       NScrollArea* _navigator;
-      ImportMidiPanel* importmidi_panel;
+      ImportMidiPanel* importmidiPanel;
+      QFrame* importmidiShowPanel;
       QSplitter* mainWindow;
 
       QMenu* menuView;
@@ -247,6 +248,7 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
       InsertMeasuresDialog* insertMeasuresDialog;
       MasterPalette* masterPalette;
       PluginCreator* pluginCreator;
+      PluginManager* pluginManager;
 
       QMenu* _fileMenu;
       QMenu* menuEdit;
@@ -281,7 +283,6 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
       OmrPanel* omrPanel;
 
       bool _midiinEnabled;
-      bool _speakerEnabled;
       QString lastOpenPath;
       QList<QString> plugins;
       ScriptEngine* se;
@@ -343,6 +344,8 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
 
       QAction* metronomeAction;
       QAction* loopAction;
+      QAction* loopInAction;
+      QAction* loopOutAction;
       QAction* panAction;
 
       QLabel* cornerLabel;
@@ -368,7 +371,6 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
       int  pluginIdxFromPath(QString pluginPath);
       void startDebugger();
       void midiinToggled(bool);
-      void speakerToggled(bool);
       void undo();
       void redo();
       void showPalette(bool);
@@ -449,6 +451,7 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
       void switchPlayMode(int);
       void networkFinished(QNetworkReply*);
       void switchLayoutMode(int);
+      void showMidiImportPanel();
 
    public slots:
       virtual void cmd(QAction* a);
@@ -500,6 +503,7 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
       void updateDrumTools();
       void showWebPanel(bool on);
       void showPluginCreator(QAction*);
+      void showPluginManager(QAction*);
 
       void updateTabNames();
       QProgressBar* showProgressBar();
@@ -615,6 +619,7 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
       void allowShowMidiPanel(const QString &file);
       void setMidiPrefOperations(const QString &file);
 
+      static Palette* newTempoPalette();
       static Palette* newTextPalette();
       static Palette* newTimePalette();
       static Palette* newRepeatsPalette();

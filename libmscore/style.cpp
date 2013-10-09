@@ -21,6 +21,7 @@
 #include "chordlist.h"
 #include "page.h"
 #include "mscore.h"
+#include "clef.h"
 
 namespace Ms {
 
@@ -93,15 +94,17 @@ static const StyleTypes2 styleTypes2[] = {
       { ST_accidentalDistance,          StyleType("accidentalDistance",      ST_SPATIUM) },
       { ST_accidentalNoteDistance,      StyleType("accidentalNoteDistance",  ST_SPATIUM) },
       { ST_beamWidth,                   StyleType("beamWidth",               ST_SPATIUM) },
-      { ST_beamDistance,                StyleType("beamDistance",            ST_DOUBLE) },      // in beamWidth units
+      { ST_beamDistance,                StyleType("beamDistance",            ST_DOUBLE)  },     // in beamWidth units
       { ST_beamMinLen,                  StyleType("beamMinLen",              ST_SPATIUM) },     // len for broken beams
-      { ST_dotMag,                      StyleType("dotMag",                  ST_DOUBLE) },
+      { ST_beamNoSlope,                 StyleType("beamNoSlope",             ST_BOOL)    },
+      { ST_dotMag,                      StyleType("dotMag",                  ST_DOUBLE)  },
       { ST_dotNoteDistance,             StyleType("dotNoteDistance",         ST_SPATIUM) },
       { ST_dotRestDistance,             StyleType("dotRestDistance",         ST_SPATIUM) },
       { ST_dotDotDistance,              StyleType("dotDotDistance",          ST_SPATIUM) },
       { ST_propertyDistanceHead,        StyleType("propertyDistanceHead",    ST_SPATIUM) },     // note property to note head
       { ST_propertyDistanceStem,        StyleType("propertyDistanceStem",    ST_SPATIUM) },     // note property to note stem
       { ST_propertyDistance,            StyleType("propertyDistance",        ST_SPATIUM) },     // note property to note property
+      { ST_articulationMag,             StyleType("articulationMag",         ST_DOUBLE) },     // note property to note property
       { ST_lastSystemFillLimit,         StyleType("lastSystemFillLimit",     ST_DOUBLE) },
       { ST_hairpinY,                    StyleType("hairpinY",                ST_SPATIUM) },
       { ST_hairpinHeight,               StyleType("hairpinHeight",           ST_SPATIUM) },
@@ -187,6 +190,7 @@ static const StyleTypes2 styleTypes2[] = {
       { ST_ottavaHook,                  StyleType("ottavaHook",              ST_SPATIUM) },
       { ST_ottavaLineWidth,             StyleType("ottavaLineWidth",         ST_SPATIUM) },
       { ST_ottavaLineStyle,             StyleType("ottavaLineStyle",         ST_INT) },
+      { ST_ottavaNumbersOnly,           StyleType("ottavaNumbersOnly",       ST_BOOL) },
       { ST_tabClef,                     StyleType("tabClef",                 ST_INT) },
       { ST_tremoloWidth,                StyleType("tremoloWidth",            ST_SPATIUM) },
       { ST_tremoloBoxHeight,            StyleType("tremoloBoxHeight",        ST_SPATIUM) },
@@ -194,7 +198,15 @@ static const StyleTypes2 styleTypes2[] = {
       { ST_tremoloDistance,             StyleType("tremoloDistance",         ST_SPATIUM) },
       { ST_linearStretch,               StyleType("linearStretch",           ST_DOUBLE) },
       { ST_crossMeasureValues,          StyleType("crossMeasureValues",      ST_BOOL) },
-      { ST_keySigNaturals,              StyleType("keySigNaturals",          ST_INT) }
+      { ST_keySigNaturals,              StyleType("keySigNaturals",          ST_INT) },
+      { ST_tupletMaxSlope,              StyleType("tupletMaxSlope",          ST_DOUBLE) },
+      { ST_tupletOufOfStaff,            StyleType("tupletOufOfStaff",        ST_BOOL) },
+      { ST_tupletVHeadDistance,         StyleType("tupletVHeadDistance",     ST_SPATIUM) },
+      { ST_tupletVStemDistance,         StyleType("tupletVStemDistance",     ST_SPATIUM) },
+      { ST_tupletStemLeftDistance,      StyleType("tupletStemLeftDistance",  ST_SPATIUM) },
+      { ST_tupletStemRightDistance,     StyleType("tupletStemRightDistance", ST_SPATIUM) },
+      { ST_tupletNoteLeftDistance,      StyleType("tupletNoteLeftDistance",  ST_SPATIUM) },
+      { ST_tupletNoteRightDistance,     StyleType("tupletNoteRightDistance", ST_SPATIUM) },
       };
 
 class StyleTypes {
@@ -275,10 +287,10 @@ void initStyle(MStyle* s)
          ALIGN_LEFT | ALIGN_TOP, QPointF(), OA, QPointF()));
 
       AS(TextStyle(
-         TR( "Dynamics"), ff, 12, false,
+         TR( "Dynamics"), "Bravura", 12, false,
          false,                                 // italic?
          false,
-         ALIGN_LEFT | ALIGN_BASELINE, QPointF(0.0, 8.0), OS, QPointF(), true));
+         ALIGN_HCENTER | ALIGN_BASELINE, QPointF(0.0, 8.0), OS, QPointF(), true));
 
       AS(TextStyle(
          TR( "Technik"), ff, 12, false, true, false,
@@ -409,14 +421,14 @@ StyleData::StyleData()
             QVariant val;
             };
       static const StyleVal2 values2[] = {
-            { ST_staffUpperBorder,            QVariant(7.0) },
-            { ST_staffLowerBorder,            QVariant(7.0) },
-            { ST_staffDistance,               QVariant(6.5) },
-            { ST_akkoladeDistance,            QVariant(6.5) },
-            { ST_minSystemDistance,           QVariant(8.5) },
-            { ST_maxSystemDistance,           QVariant(15.0) },
-            { ST_lyricsDistance,              QVariant(3.5) },
-            { ST_lyricsMinBottomDistance,     QVariant(2) },
+            { ST_staffUpperBorder,            7.0  },
+            { ST_staffLowerBorder,            7.0  },
+            { ST_staffDistance,               6.5  },
+            { ST_akkoladeDistance,            6.5  },
+            { ST_minSystemDistance,           8.5  },
+            { ST_maxSystemDistance,           15.0 },
+            { ST_lyricsDistance,              3.5  },
+            { ST_lyricsMinBottomDistance,     2    },
             { ST_lyricsLineHeight,            QVariant(1.0) },
             { ST_figuredBassFontFamily,       QVariant(QString("MuseScore Figured Bass")) },
             { ST_figuredBassFontSize,         QVariant(8.0) },
@@ -470,6 +482,7 @@ StyleData::StyleData()
             { ST_propertyDistanceHead,        QVariant(1.0) },
             { ST_propertyDistanceStem,        QVariant(1.8) },
             { ST_propertyDistance,            QVariant(1.0) },
+            { ST_articulationMag,             QVariant(1.0) },
             { ST_lastSystemFillLimit,         QVariant(0.3) },
             { ST_hairpinY,                    QVariant(8) },
             { ST_hairpinHeight,               QVariant(1.2) },
@@ -555,14 +568,23 @@ StyleData::StyleData()
             { ST_ottavaHook,                  QVariant(1.9) },
             { ST_ottavaLineWidth,             QVariant(.1) },
             { ST_ottavaLineStyle,             QVariant(int(Qt::DashLine)) },
-            { ST_tabClef,                     QVariant(int(CLEF_TAB2)) },
+            { ST_ottavaNumbersOnly,           true },
+            { ST_tabClef,                     QVariant(int(ClefType::TAB2)) },
             { ST_tremoloWidth,                QVariant(1.2) },  // tremolo stroke width: note head width
             { ST_tremoloBoxHeight,            QVariant(0.65) },
             { ST_tremoloStrokeWidth,          QVariant(0.35) },
             { ST_tremoloDistance,             QVariant(0.8) },
             { ST_linearStretch,               QVariant(qreal(1.5)) },
             { ST_crossMeasureValues,          QVariant(false) },
-            { ST_keySigNaturals,              QVariant(NAT_NONE) }
+            { ST_keySigNaturals,              QVariant(NAT_NONE) },
+            { ST_tupletMaxSlope,              QVariant(qreal(0.5)) },
+            { ST_tupletOufOfStaff,            QVariant(true) },
+            { ST_tupletVHeadDistance,         QVariant(.5) },
+            { ST_tupletVStemDistance,         QVariant(.25) },
+            { ST_tupletStemLeftDistance,      QVariant(.5) },
+            { ST_tupletStemRightDistance,     QVariant(.5) },
+            { ST_tupletNoteLeftDistance,      QVariant(0.0) },
+            { ST_tupletNoteRightDistance,     QVariant(0.0)}
             };
       for (unsigned i = 0; i < sizeof(values2)/sizeof(*values2); ++i)
             _values[values2[i].idx] = values2[i].val;
@@ -1462,7 +1484,9 @@ bool StyleData::load(QFile* qf)
             if (e.name() == "museScore") {
                   QString version = e.attribute("version");
                   QStringList sl  = version.split('.');
-                  // _mscVersion  = sl[0].toInt() * 100 + sl[1].toInt();
+                  int mscVersion  = sl[0].toInt() * 100 + sl[1].toInt();
+                  if (mscVersion != MSCVERSION)
+                        return false;
                   while (e.readNextStartElement()) {
                         if (e.name() == "Style")
                               load(e);

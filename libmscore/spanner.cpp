@@ -22,6 +22,7 @@ namespace Ms {
 
 int Spanner::editTick;
 int Spanner::editTick2;
+int Spanner::editTrack2;
 QList<QPointF> Spanner::userOffsets2;
 QList<QPointF> Spanner::userOffsets;
 
@@ -134,6 +135,17 @@ QVariant SpannerSegment::propertyDefault(P_ID id) const
       }
 
 //---------------------------------------------------------
+//   reset
+//---------------------------------------------------------
+
+void SpannerSegment::reset()
+      {
+      score()->undoChangeProperty(this, P_USER_OFF2, QPointF());
+      Element::reset();
+      spanner()->reset();
+      }
+
+//---------------------------------------------------------
 //   Spanner
 //---------------------------------------------------------
 
@@ -219,6 +231,8 @@ void Spanner::startEdit(MuseScoreView*, const QPointF&)
       {
       editTick  = _tick;
       editTick2 = _tick2;
+      editTrack2 = _track2;
+
       userOffsets.clear();
       userOffsets2.clear();
       foreach (SpannerSegment* ss, spannerSegments()) {
@@ -233,18 +247,24 @@ void Spanner::startEdit(MuseScoreView*, const QPointF&)
 
 void Spanner::endEdit()
       {
-      score()->undoPropertyChanged(this, P_SPANNER_TICK, editTick);
-      score()->undoPropertyChanged(this, P_SPANNER_TICK2, editTick2);
+      if (editTick != tick() || editTick2 != tick2() || editTrack2 != track2()) {
+            score()->undoPropertyChanged(this, P_SPANNER_TICK, editTick);
+            score()->undoPropertyChanged(this, P_SPANNER_TICK2, editTick2);
+            score()->undoPropertyChanged(this, P_SPANNER_TRACK2, editTrack2);
+            score()->rebuildBspTree();
+            }
 
       if (spannerSegments().size() != userOffsets2.size()) {
             qDebug("SLine::endEdit(): segment size changed");
             return;
             }
+#if 0 //HACK
       for (int i = 0; i < userOffsets2.size(); ++i) {
             SpannerSegment* ss = segments[i];
             score()->undoPropertyChanged(ss, P_USER_OFF, userOffsets[i]);
             score()->undoPropertyChanged(ss, P_USER_OFF2, userOffsets2[i]);
             }
+#endif
       }
 
 //---------------------------------------------------------
@@ -259,24 +279,6 @@ void Spanner::setSelected(bool f)
       }
 
 //---------------------------------------------------------
-//   isEdited
-//    compare edited spanner with origSpanner
-//---------------------------------------------------------
-
-bool Spanner::isEdited(Spanner* originalSpanner) const
-      {
-      if (_tick != originalSpanner->_tick || _tick2 != originalSpanner->_tick2)
-            return true;
-      if (spannerSegments().size() != originalSpanner->spannerSegments().size())
-            return true;
-      for (int i = 0; i < segments.size(); ++i) {
-            if (segments[i]->isEdited(originalSpanner->segments[i]))
-                  return true;
-            }
-      return false;
-      }
-
-//---------------------------------------------------------
 //   getProperty
 //---------------------------------------------------------
 
@@ -287,6 +289,8 @@ QVariant Spanner::getProperty(P_ID propertyId) const
                   return tick();
             case P_SPANNER_TICK2:
                   return tick2();
+            case P_SPANNER_TRACK2:
+                  return track2();
             default:
                   break;
             }
@@ -305,6 +309,9 @@ bool Spanner::setProperty(P_ID propertyId, const QVariant& v)
                   break;
             case P_SPANNER_TICK2:
                   setTick2(v.toInt());
+                  break;
+            case P_SPANNER_TRACK2:
+                  setTrack2(v.toInt());
                   break;
             default:
                   if (!Element::setProperty(propertyId, v))
@@ -346,7 +353,6 @@ ChordRest* Score::findCR(int tick, int track) const
 
 void Spanner::computeStartElement()
       {
-//      _startElement = 0;
       switch (_anchor) {
             case ANCHOR_SEGMENT:
                   _startElement = score()->findCR(tick(), track());
@@ -368,10 +374,9 @@ void Spanner::computeStartElement()
 
 void Spanner::computeEndElement()
       {
-//      _endElement = 0;
       switch (_anchor) {
             case ANCHOR_SEGMENT:
-                  _endElement = score()->findCR(tick2(), track());
+                  _endElement = score()->findCR(tick2(), track2());
                   break;
 
             case ANCHOR_MEASURE:
@@ -451,7 +456,7 @@ ChordRest* Spanner::endCR() const
 
 Segment* Spanner::startSegment() const
       {
-      return score()->tick2segment(tick());
+      return score()->tick2rightSegment(tick());
       }
 
 //---------------------------------------------------------
@@ -460,8 +465,7 @@ Segment* Spanner::startSegment() const
 
 Segment* Spanner::endSegment() const
       {
-      return score()->tick2segment(tick2());
+      return score()->tick2leftSegment(tick2());
       }
-
 }
 

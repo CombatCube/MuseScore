@@ -348,7 +348,7 @@ void Articulation::draw(QPainter* painter) const
       SymId sym = _up ? articulationList[articulationType()].upSym : articulationList[articulationType()].downSym;
       int flags = articulationList[articulationType()].flags;
       if (staff()) {
-            if (staff()->staffGroup() == TAB_STAFF) {
+            if (staff()->staffGroup() == TAB_STAFF_GROUP) {
                   if (!(flags & ARTICULATION_SHOW_IN_TABLATURE))
                         return;
                   }
@@ -402,7 +402,6 @@ void Articulation::setDirection(MScore::Direction d)
       _direction = d;
       if (d != MScore::AUTO)
             _up = (d == MScore::UP);
-//      qDebug("setDirection %p %d %d\n", this, _up, int(d));
       }
 
 //---------------------------------------------------------
@@ -556,6 +555,15 @@ void Articulation::styleChanged()
             _anchor = score()->style()->articulationAnchor(_articulationType);
       }
 
+//---------------------------------------------------------
+//   mag
+//---------------------------------------------------------
+
+qreal Articulation::mag() const
+      {
+      return parent() ? parent()->mag() * score()->styleD(ST_articulationMag): 1.0;
+      }
 }
+
 
 

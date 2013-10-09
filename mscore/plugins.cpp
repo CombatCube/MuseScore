@@ -42,10 +42,12 @@
 #include "libmscore/keysig.h"
 #include "libmscore/harmony.h"
 #include "libmscore/slur.h"
+#include "libmscore/tie.h"
 #include "libmscore/notedot.h"
 #include "libmscore/figuredbass.h"
 #include "libmscore/accidental.h"
 #include "libmscore/lyrics.h"
+#include "libmscore/layoutbreak.h"
 #include "qmlplugin.h"
 
 namespace Ms {
@@ -142,7 +144,7 @@ QQmlEngine* MuseScore::qml()
             QDir dir(mscoreGlobalShare + QString("/qml"));
             importPaths.append(dir.absolutePath());
             _qml->setImportPathList(importPaths);
-#endif      
+#endif
             qmlRegisterType<MsProcess>  ("MuseScore", 1, 0, "QProcess");
             qmlRegisterType<FileIO, 1>  ("FileIO",    1, 0, "FileIO");
             //-----------mscore bindings
@@ -171,6 +173,7 @@ QQmlEngine* MuseScore::qml()
             qmlRegisterType<Text>       ("MuseScore", 1, 0, "MText");
             qmlRegisterType<Lyrics>     ("MuseScore", 1, 0, "Lyrics");
             qmlRegisterType<FiguredBassItem>("MuseScore", 1, 0, "FiguredBassItem");
+            qmlRegisterType<LayoutBreak>("MuseScore", 1, 0, "LayoutBreak");
 
             qmlRegisterUncreatableType<Element>("MuseScore", 1, 0,
                "Element", tr("you cannot create an element"));
@@ -376,12 +379,13 @@ void MuseScore::pluginTriggered(int idx)
 
       if (p->pluginType() == "dock" || p->pluginType() == "dialog") {
             QQuickView* view = new QQuickView(engine, 0);
+            view->setSource(QUrl::fromLocalFile(pp));
             view->setTitle(p->menuPath().mid(p->menuPath().lastIndexOf(".") + 1));
-            view->setResizeMode(QQuickView::SizeViewToRootObject);
-            p->setParentItem(view->contentItem());
-            view->setWidth(p->width());
-            view->setHeight(p->height());
-            view->show();
+            view->setColor(QApplication::palette().color(QPalette::Window));
+            //p->setParentItem(view->contentItem());
+            //view->setWidth(p->width());
+            //view->setHeight(p->height());
+            view->setResizeMode(QQuickView::SizeRootObjectToView);
             if (p->pluginType() == "dock") {
                   QDockWidget* dock = new QDockWidget("Plugin", 0);
                   dock->setAttribute(Qt::WA_DeleteOnClose);
@@ -396,6 +400,7 @@ void MuseScore::pluginTriggered(int idx)
                   dock->setWidget(w);
                   addDockWidget(area, dock);
                   connect(engine, SIGNAL(quit()), dock, SLOT(close()));
+                  view->show();
                   }
             else {
                   connect(engine, SIGNAL(quit()), view, SLOT(close()));
@@ -403,10 +408,11 @@ void MuseScore::pluginTriggered(int idx)
                   }
             }
 
-      if (cs)
+      // dont call startCmd for non modal dialog
+      if (cs && p->pluginType() != "dock")
             cs->startCmd();
       p->runPlugin();
-      if (cs)
+      if (cs && p->pluginType() != "dock")
             cs->endCmd();
       endCmd();
       }

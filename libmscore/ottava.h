@@ -39,7 +39,8 @@ class OttavaSegment : public TextLineSegment {
    protected:
 
    public:
-      OttavaSegment(Score* s) : TextLineSegment(s) {}
+      // OttavaSegment(Score* s) : TextLineSegment(s) { setFlag(ELEMENT_ON_STAFF, true); }
+      OttavaSegment(Score* s) : TextLineSegment(s) { }
       virtual ElementType type() const override     { return OTTAVA_SEGMENT; }
       virtual OttavaSegment* clone() const override { return new OttavaSegment(*this); }
       Ottava* ottava() const               { return (Ottava*)spanner(); }
@@ -50,12 +51,24 @@ class OttavaSegment : public TextLineSegment {
       virtual PropertyStyle propertyStyle(P_ID) const override;
       virtual void resetProperty(P_ID id) override;
       virtual void styleChanged() override;
-      virtual void reset() override { spanner()->reset(); }
+      };
+
+//---------------------------------------------------------
+//   OttavaType
+//---------------------------------------------------------
+
+enum class OttavaType {
+      OTTAVA_8VA,
+      OTTAVA_8VB,
+      OTTAVA_15MA,
+      OTTAVA_15MB,
+      OTTAVA_22MA,
+      OTTAVA_22MB
       };
 
 //---------------------------------------------------------
 //   @@ Ottava
-//   @P ottavaType   enum OttavaType OTTAVA_8VA, OTTAVA_15MA, OTTAVA_8VB, OTTAVA_15MB
+//   @P ottavaType   enum OttavaType OTTAVA_8VA, OTTAVA_15MA, OTTAVA_8VB, OTTAVA_15MB, OTTAVA_22MA, OTTAVA_22MB
 //---------------------------------------------------------
 
 class Ottava : public TextLine {
@@ -63,18 +76,16 @@ class Ottava : public TextLine {
       Q_ENUMS(OttavaType)
 
    public:
-      enum OttavaType {
-            OTTAVA_8VA,
-            OTTAVA_15MA,
-            OTTAVA_8VB,
-            OTTAVA_15MB
-            };
 
    private:
       Q_PROPERTY(OttavaType ottavaType READ ottavaType WRITE undoSetOttavaType)
       OttavaType _ottavaType;
+      bool _numbersOnly;
+      PropertyStyle numbersOnlyStyle;
       PropertyStyle lineWidthStyle;
       PropertyStyle lineStyleStyle;
+      PropertyStyle beginSymbolStyle;
+      PropertyStyle continueSymbolStyle;
 
    protected:
       QString text;
@@ -92,8 +103,10 @@ class Ottava : public TextLine {
       OttavaType ottavaType() const { return _ottavaType; }
       void undoSetOttavaType(OttavaType val);
 
+      bool numbersOnly() const      { return _numbersOnly; }
+      void setNumbersOnly(bool val) { _numbersOnly = val; }
+
       virtual LineSegment* createLineSegment() override;
-      virtual void layout() override;
       int pitchShift() const { return _pitchShift; }
 
       virtual void endEdit() override;
@@ -111,10 +124,9 @@ class Ottava : public TextLine {
       virtual void reset() override;
       };
 
-
 }     // namespace Ms
 
-Q_DECLARE_METATYPE(Ms::Ottava::OttavaType)
+Q_DECLARE_METATYPE(Ms::OttavaType)
 
 #endif
 

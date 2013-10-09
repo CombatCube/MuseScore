@@ -19,6 +19,7 @@
 #include "utils.h"
 #include "style.h"
 #include "mscore.h"
+#include "chord.h"
 
 namespace Ms {
 
@@ -34,6 +35,7 @@ struct Dyn {
       const char* text;  // utf8 text of dynamic
       };
 
+#if 0
 static Dyn dynList[] = {
       // dynamic:
       {  -1,  true,  "other-dynamics", ""                                                       },
@@ -67,6 +69,45 @@ static Dyn dynList[] = {
       {  0,   true,  "r",      u8"\U0001d18c"},
       {  0,   true,  "s",      u8"\U0001d18d"},
       {  0,   true,  "z",      u8"\U0001d18e"},
+      };
+#endif
+
+// bravura version:
+
+static Dyn dynList[] = {
+      // dynamic:
+      {  -1,  true,  "other-dynamics", ""     },
+      {   1,  false, "pppppp", u8"\U0000e567" },
+      {   5,  false, "ppppp",  u8"\U0000e568" },
+      {  10,  false, "pppp",   u8"\U0000e569" },
+      {  16,  false, "ppp",    u8"\U0000e56a" },
+      {  33,  false, "pp",     u8"\U0000e56b" },
+      {  49,  false, "p",      u8"\U0000e560" },
+      {  64,  false, "mp",     u8"\U0000e56c" },
+      {  80,  false, "mf",     u8"\U0000e56d" },
+      {  96,  false, "f",      u8"\U0000e562" },
+      { 112,  false, "ff",     u8"\U0000e56e" },
+      { 126,  false, "fff",    u8"\U0000e56f" },
+      { 127,  false, "ffff",   u8"\U0000e570" },
+      { 127,  false, "fffff",  u8"\U0000e571" },
+      { 127,  false, "ffffff", u8"\U0000e572" },
+
+      // accents:
+      {  0,   true,  "fp",     u8"\U0000e573" },
+      {  0,   true,  "sf",     u8"\U0000e575" },
+      {  0,   true,  "sfz",    u8"\U0000e578"},
+      {  0,   true,  "sff",    u8"\U0000e575\U0000e562"},
+      {  0,   true,  "sffz",   u8"\U0000e579"},
+      {  0,   true,  "sfp",    u8"\U0000e576"},
+      {  0,   true,  "sfpp",   u8"\U0000e577"},
+      {  0,   true,  "rfz",    u8"\U0000e57b"},
+      {  0,   true,  "rf",     u8"\U0000e57a"},
+      {  0,   true,  "fz",     u8"\U0000e574"},
+      {  0,   true,  "m",      u8"\U0000e561"},
+      {  0,   true,  "r",      u8"\U0000e563"},
+      {  0,   true,  "s",      u8"\U0000e564"},
+      {  0,   true,  "z",      u8"\U0000e565"},
+      {  0,   true,  "n",      u8"\U0000e566"}
       };
 
 //---------------------------------------------------------
@@ -159,6 +200,24 @@ void Dynamic::layout()
                   }
             }
       Text::layout();
+
+      Segment* s = segment();
+      for (int voice = 0; voice < VOICES; ++voice) {
+            int t = (track() & ~0x3) + voice;
+            Chord* c = static_cast<Chord*>(s->element(t));
+            if (!c)
+                  continue;
+            if (c->type() == CHORD) {
+                  qreal noteHeadWidth = score()->noteHeadWidth() * c->mag();
+                  if (c->stem() && !c->up())  // stem down
+                        rxpos() += noteHeadWidth * .25;  // center on stem + optical correction
+                  else
+                        rxpos() += noteHeadWidth * .5;   // center on note head
+                  }
+            else
+                  rxpos() += c->width() * .5;
+            break;
+            }
       }
 
 //---------------------------------------------------------
@@ -175,6 +234,7 @@ void Dynamic::setDynamicType(const QString& tag)
                   return;
                   }
             }
+      qDebug("setDynamicType: other <%s>", qPrintable(tag));
       setDynamicType(DYNAMIC_OTHER);
       setText(tag);
       }
@@ -223,7 +283,7 @@ QLineF Dynamic::dragAnchor() const
       qreal xp = 0.0;
       for (Element* e = parent(); e; e = e->parent())
             xp += e->x();
-      qreal yp = measure()->system()->staffY(staffIdx());
+      qreal yp = measure()->system()->staffYpage(staffIdx());
       QPointF p(xp, yp);
       return QLineF(p, canvasPos());
       }
@@ -245,7 +305,7 @@ QVariant Dynamic::getProperty(P_ID propertyId) const
       {
       switch(propertyId) {
             case P_DYNAMIC_RANGE:     return int(_dynRange);
-            case P_VELOCITY:          return _velocity;
+            case P_VELOCITY:          return velocity();
             case P_SUBTYPE:           return _dynamicType;
             default:
                   return Text::getProperty(propertyId);

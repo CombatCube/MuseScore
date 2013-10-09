@@ -296,7 +296,11 @@ void Text::layout1()
                   }
             if (e->type() == SEGMENT) {
                   Segment* s = static_cast<Segment*>(e);
-                  rypos() += s->measure()->system()->staff(staffIdx())->y();
+                  System* system = s->measure()->system();
+                  if (system) {
+                        SysStaff* sstaff = system->staff(staffIdx());
+                        rypos() += sstaff->y();
+                        }
                   }
             }
 
@@ -1021,10 +1025,10 @@ QLineF Text::dragAnchor() const
             p1 = QPointF(xp, yp);
             }
       else {
-            p1 = parent()->canvasPos(); // QPointF(parent()->canvasBoundingRect().topLeft());
+            p1 = parent()->canvasPos();
             if (parent()->type() == SEGMENT) {
                   Segment* s = static_cast<Segment*>(parent());
-                  p1.ry() += s ? s->measure()->system()->staff(staffIdx())->y() : 0.0;
+                  p1.ry() = s ? s->measure()->system()->staffYpage(staffIdx()) : 0.0;
                   }
             }
 

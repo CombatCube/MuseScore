@@ -34,7 +34,6 @@ InputState::InputState() :
    _string(VISUAL_STRING_NONE),
    _repitchMode(false),
    rest(false),
-   pitch(72),
    noteType(NOTE_NORMAL),
    beamMode(BeamMode::AUTO),
    noteEntryMode(false),
@@ -60,7 +59,7 @@ Drumset* InputState::drumset() const
 StaffGroup InputState::staffGroup() const
       {
       if (_segment == 0 || _track == -1)
-            return PITCHED_STAFF;
+            return STANDARD_STAFF_GROUP;
       return _segment->score()->staff(_track/VOICES)->staffType()->group();
       }
 

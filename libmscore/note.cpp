@@ -24,6 +24,7 @@
 #include "sym.h"
 #include "xml.h"
 #include "slur.h"
+#include "tie.h"
 #include "text.h"
 #include "clef.h"
 #include "staff.h"
@@ -141,6 +142,7 @@ Note::Note(Score* s)
       setFlags(ELEMENT_MOVABLE | ELEMENT_SELECTABLE);
       dragMode           = false;
       _pitch             = 0;
+      _play              = true;
       _tuning            = 0.0;
       _accidental        = 0;
       _mirror            = false;
@@ -195,6 +197,7 @@ Note::Note(const Note& n)
       _pitch             = n._pitch;
       _tpc               = n._tpc;
       _hidden            = n._hidden;
+      _play              = n._play;
       _tuning            = n._tuning;
       _veloType          = n._veloType;
       _veloOffset        = n._veloOffset;
@@ -640,8 +643,12 @@ void Note::write(Xml& xml) const
                         _dots[i]->write(xml);
                   }
             }
-      if (_tieFor)
+      if (_tieFor) {
+            _tieFor->setId(++xml.spannerId);
             _tieFor->write(xml);
+            }
+      if (_tieBack)
+            xml.tagE(QString("endSpanner id=\"%1\"").arg(_tieBack->id()));
       if (chord() == 0 || chord()->userPlayEvents()) {
             if (!_playEvents.isEmpty()) {
                   xml.stag("Events");
@@ -657,6 +664,7 @@ void Note::write(Xml& xml) const
       writeProperty(xml, P_DOT_POSITION);
       writeProperty(xml, P_HEAD_GROUP);
       writeProperty(xml, P_VELO_OFFSET);
+      writeProperty(xml, P_PLAY);
       writeProperty(xml, P_TUNING);
       writeProperty(xml, P_FRET);
       writeProperty(xml, P_STRING);
@@ -711,6 +719,8 @@ void Note::read(XmlReader& e)
                   setProperty(P_HEAD_GROUP, Ms::getProperty(P_HEAD_GROUP, e));
             else if (tag == "velocity")
                   setVeloOffset(e.readInt());
+            else if (tag == "play")
+                  setPlay(e.readInt());
             else if (tag == "tuning")
                   setTuning(e.readDouble());
             else if (tag == "fret")
@@ -720,7 +730,10 @@ void Note::read(XmlReader& e)
             else if (tag == "ghost")
                   setGhost(e.readInt());
             else if (tag == "headType")
-                  setProperty(P_HEAD_TYPE, Ms::getProperty(P_HEAD_TYPE, e));
+                  if (score()->mscVersion() <= 114)
+                        setProperty(P_HEAD_TYPE, Ms::getProperty(P_HEAD_TYPE, e).toInt() - 1);
+                  else
+                        setProperty(P_HEAD_TYPE, Ms::getProperty(P_HEAD_TYPE, e).toInt());
             else if (tag == "veloType")
                   setProperty(P_VELO_TYPE, Ms::getProperty(P_VELO_TYPE, e));
             else if (tag == "line")
@@ -730,6 +743,7 @@ void Note::read(XmlReader& e)
                   _tieFor->setTrack(track());
                   _tieFor->read(e);
                   _tieFor->setStartNote(this);
+                  score()->addSpanner(_tieFor);
                   }
             else if (tag == "Fingering" || tag == "Text") {       // Text is obsolete
                   Fingering* f = new Fingering(score());
@@ -864,11 +878,14 @@ void Note::read(XmlReader& e)
                   Spanner* sp = score()->findSpanner(id);
                   if (sp) {
                         sp->setEndElement(this);
-                        addSpannerBack(sp);
+                        if (sp->type() == TIE)
+                              _tieBack = static_cast<Tie*>(sp);
+                        else
+                              addSpannerBack(sp);
+                        score()->removeSpanner(sp);
                         }
                   else
                         qDebug("Note::read(): cannot find spanner %d", id);
-                  score()->removeSpanner(sp);
                   e.readNext();
                   }
             else if (tag == "TextLine") {
@@ -941,7 +958,7 @@ void Note::endDrag()
                         -_lineOffset : _lineOffset);
             _lineOffset = 0;
             // get a fret number for same pitch on new string
-            nFret       = staff->part()->instr()->tablature()->fret(_pitch, nString);
+            nFret       = staff->part()->instr()->stringData()->fret(_pitch, nString);
             if (nFret < 0)                      // no fret?
                   return;                       // no party!
             score()->undoChangeProperty(this, P_FRET, nFret);
@@ -953,7 +970,7 @@ void Note::endDrag()
             _lineOffset = 0;
             // get note context
             int tick    = chord()->tick();
-            int clef    = staff->clef(tick);
+            ClefType clef    = staff->clef(tick);
             int key     = staff->key(tick).accidentalType();
             // determine new pitch of dragged note
             nPitch      = line2pitch(nLine, clef, key);
@@ -1057,8 +1074,8 @@ Element* Note::drop(const DropData& data)
                   return 0;
 
             case LYRICS:
-                  e->setParent(ch->segment());
-                  e->setTrack(trackZeroVoice(track()));
+                  e->setParent(ch);
+                  e->setTrack(track());
                   score()->undoAddElement(e);
                   return e;
 
@@ -1153,7 +1170,7 @@ Element* Note::drop(const DropData& data)
                   }
                   delete e;
                   break;
-                  
+
             case BAGPIPE_EMBELLISHMENT:
                   {
                   BagpipeEmbellishment* b = static_cast<BagpipeEmbellishment*>(e);
@@ -1296,15 +1313,23 @@ void Note::layout2()
 
             // if TAB and stems through staff
             if (staff()->isTabStaff()) {
-                  if(static_cast<StaffTypeTablature*>( staff()->staffType())->stemThrough() ) {
+                  // with TAB's, dotPosX is not set:
+                  // get dot X from width of fret text and use TAB default spacing
+                  StaffTypeTablature* tab = static_cast<StaffTypeTablature*>( staff()->staffType());
+                  x = width();
+                  dd = STAFFTYPE_TAB_DEFAULTDOTDIST_X * spatium();
+                  d = dd * 0.5;
+                  if(tab->stemThrough() ) {
                         // if fret mark on lines, use standard processing
-                        if (static_cast<StaffTypeTablature*>(staff()->staffType())->onLines())
+                        if (tab->onLines())
                               onLine = true;
                         else
                         // if fret marks above lines, raise the dots by half line distance
                               y = -staff()->lineDistance() * 0.5;
                         }
                   // if stems beside staff, do nothing
+                  else
+                        return;
                   }
             // if not TAB, look at note line
             else
@@ -1372,8 +1397,8 @@ void Note::layout10(AccidentalState* as)
                   }
             if (_fret < 0) {
                   int string, fret;
-                  Tablature* tab = staff()->part()->instr()->tablature();
-                  if (tab->convertPitch(_pitch, &string, &fret)) {
+                  StringData* stringData = staff()->part()->instr()->stringData();
+                  if (stringData->convertPitch(_pitch, &string, &fret)) {
                         _fret   = fret;
                         _string = string;
                         }
@@ -1769,6 +1794,8 @@ QVariant Note::getProperty(P_ID propertyId) const
                   return headType();
             case P_VELO_TYPE:
                   return veloType();
+            case P_PLAY:
+                  return play();
             default:
                   break;
             }
@@ -1830,6 +1857,9 @@ bool Note::setProperty(P_ID propertyId, const QVariant& v)
                         }
                   break;
                   }
+            case P_PLAY:
+                  setPlay(v.toBool());
+                  break;
             default:
                   if (!Element::setProperty(propertyId, v))
                         return false;
@@ -1873,6 +1903,15 @@ void Note::undoSetGhost(bool val)
 void Note::undoSetSmall(bool val)
       {
       undoChangeProperty(P_SMALL, val);
+      }
+
+//---------------------------------------------------------
+//   undoSetPlay
+//---------------------------------------------------------
+
+void Note::undoSetPlay(bool val)
+      {
+      undoChangeProperty(P_PLAY, val);
       }
 
 //---------------------------------------------------------
@@ -1954,6 +1993,7 @@ void Note::undoSetHeadType(NoteHeadType val)
 QVariant Note::propertyDefault(P_ID propertyId) const
       {
       switch(propertyId) {
+            case P_GHOST:
             case P_SMALL:
                   return false;
             case P_MIRROR_HEAD:
@@ -1968,12 +2008,12 @@ QVariant Note::propertyDefault(P_ID propertyId) const
             case P_FRET:
             case P_STRING:
                   return -1;
-            case P_GHOST:
-                  return false;
             case P_HEAD_TYPE:
                   return Note::HEAD_AUTO;
             case P_VELO_TYPE:
                   return MScore::OFFSET_VAL;
+            case P_PLAY:
+                  return true;
             default:
                   break;
             }

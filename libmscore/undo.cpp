@@ -2,7 +2,7 @@
 //  MuseScore
 //  Music Composition & Notation
 //
-//  Copyright (C) 2002-2011 Werner Schweer
+//  Copyright (C) 2002-2013 Werner Schweer
 //
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License version 2
@@ -32,6 +32,7 @@
 #include "select.h"
 #include "input.h"
 #include "slur.h"
+#include "tie.h"
 #include "clef.h"
 #include "staff.h"
 #include "chord.h"
@@ -94,9 +95,12 @@ void updateNoteLines(Segment* segment, int track)
             for (int t = track; t < track + VOICES; ++t) {
                   Chord* chord = static_cast<Chord*>(s->element(t));
                   if (chord && chord->type() == Element::CHORD) {
-                        int n = chord->notes().size();
-                        for (int i = 0; i < n; ++i)
-                              chord->notes().at(i)->updateLine();
+                        for (Note* n : chord->notes())
+                              n->updateLine();
+                        for (Chord* gc : chord->graceNotes()) {
+                              for(Note* gn : gc->notes())
+                                    gn->updateLine();
+                              }
                         }
                   }
             }
@@ -443,6 +447,11 @@ void Score::undoChangeKeySig(Staff* ostaff, int tick, KeySigEvent st)
 
             KeySig* nks  = new KeySig(score);
             nks->setTrack(track);
+
+            int diff = -staff->part()->instr()->transpose().chromatic;
+            if (diff != 0 && !score->styleB(ST_concertPitch))
+                  st.setAccidentalType(transposeKey(st.accidentalType(), diff));
+
             nks->changeKeySigEvent(st);
             nks->setParent(s);
             if (links == 0)
@@ -450,15 +459,26 @@ void Score::undoChangeKeySig(Staff* ostaff, int tick, KeySigEvent st)
             links->append(nks);
             nks->setLinks(links);
 
-            if (ks) {
-                  qDebug("  changeElement");
+            if (ks)
                   undo(new ChangeElement(ks, nks));
-                  }
-            else {
-                  qDebug("  addElement");
+            else
                   undo(new AddElement(nks));
-                  }
             updateNoteLines(s, track);
+            //
+            // change all following generated keysigs
+            //
+            for (Measure* m = measure->nextMeasure(); m; m = m->nextMeasure()) {
+                  Segment* s = m->undoGetSegment(Segment::SegKeySig, m->tick());
+                  if (!s)
+                        continue;
+                  KeySig* ks = static_cast<KeySig*>(s->element(track));
+                  if (!ks)
+                        continue;
+                  if (ks && !ks->generated())
+                        break;
+                  if (ks->keySigEvent() != st)
+                        undo(new ChangeKeySig(ks, st, ks->showCourtesy(), ks->showNaturals()));
+                  }
             }
       }
 
@@ -482,11 +502,8 @@ void Score::undoChangeClef(Staff* ostaff, Segment* seg, ClefType st)
 
       foreach(Staff* staff, staffList) {
             Score* score = staff->score();
-            if (staff->staffType()->group() != clefTable[st].staffGroup) {
-                  qDebug("Staff::changeClef(%d): invalid staff group, src %d, dst %d",
-                     st, clefTable[st].staffGroup, staff->staffType()->group());
+            if (staff->staffType()->group() != ClefInfo::staffGroup(st))
                   continue;
-                  }
             int tick = seg->tick();
             Measure* measure = score->tick2measure(tick);
             if (!measure) {
@@ -853,8 +870,10 @@ void Score::undoAddElement(Element* element)
                   if (element->type() == Element::FINGERING)
                         element->score()->layoutFingering(static_cast<Fingering*>(element));
                   else if (element->type() == Element::CHORD) {
-                        for (Note* n : static_cast<Chord*>(element)->notes())
-                              n->setTpcFromPitch();
+                        for (Note* n : static_cast<Chord*>(element)->notes()) {
+                              if(n->tpc() == INVALID_TPC)
+                                    n->setTpcFromPitch();
+                              }
                         element->score()->updateNotes();
                         }
                   return;
@@ -1001,7 +1020,10 @@ void Score::undoAddElement(Element* element)
                || element->type() == Element::PEDAL
                || element->type() == Element::VOLTA) {
                   // ne->setParent(0);  ???
-                  undo(new AddElement(ne));
+                  Spanner* nsp = static_cast<Spanner*>(ne);
+                  Spanner* sp = static_cast<Spanner*>(element);
+                  nsp->setTrack2(staffIdx * VOICES + (sp->track2() % VOICES));
+                  undo(new AddElement(nsp));
                   }
             else if (element->type() == Element::TREMOLO && static_cast<Tremolo*>(element)->twoNotes()) {
                   Tremolo* tremolo = static_cast<Tremolo*>(element);
@@ -1341,6 +1363,12 @@ RemoveElement::RemoveElement(Element* e)
                   score->undoRemoveElement(cr->tuplet());
             if (e->type() == Element::CHORD) {
                   Chord* chord = static_cast<Chord*>(e);
+                  // remove tremolo between 2 notes
+                  if (chord->tremolo()) {
+                        Tremolo* tremolo = chord->tremolo();
+                        if (tremolo->twoNotes())
+                              score->undoRemoveElement(tremolo);
+                        }
                   foreach(Note* note, chord->notes()) {
                         if (note->tieFor() && note->tieFor()->endNote())
                               score->undoRemoveElement(note->tieFor());
@@ -1689,7 +1717,7 @@ void ChangeElement::flip()
                   ks->staff()->setKey(ks->tick(),ks->keySigEvent());
                   ks->insertIntoKeySigChain();
                   ks->score()->cmdUpdateAccidentals(ks->measure(), ks->staffIdx());
-                  // newElement->staff()->setUpdateKeymap(true);
+                  newElement->staff()->setUpdateKeymap(true);
                   }
             }
       else if (newElement->type() == Element::DYNAMIC)
@@ -2478,6 +2506,18 @@ void ChangeStyle::flip()
       }
 
 //---------------------------------------------------------
+//   ChangeStyleVal::flip
+//---------------------------------------------------------
+
+void ChangeStyleVal::flip()
+      {
+      QVariant v = score->style(idx);
+      score->style()->set(idx, value);
+      score->setLayoutAll(true);
+      value = v;
+      }
+
+//---------------------------------------------------------
 //   ChangeChordStaffMove
 //---------------------------------------------------------
 
@@ -2577,7 +2617,6 @@ void ChangeMeasureProperties::flip()
       if (o != noOffset || ir != irregular) {
             measure->setNoOffset(noOffset);
             measure->setIrregular(irregular);
-            score->renumberMeasures();
             }
       breakMM     = a;
       repeatCount = r;
@@ -2698,6 +2737,7 @@ void RemoveMeasures::undo()
       fm->score()->insertTime(fm->tick(), ticks);
       fm->score()->fixTicks();
       fm->score()->connectTies();
+      fm->score()->setLayoutAll(true);
       }
 
 //---------------------------------------------------------
@@ -3178,25 +3218,50 @@ void AddBracket::redo()
       {
       staff->setBracket(level, type);
       staff->setBracketSpan(level, span);
+      staff->score()->setLayoutAll(true);
       }
 
 void AddBracket::undo()
       {
       staff->setBracket(level, NO_BRACKET);
+      staff->score()->setLayoutAll(true);
       }
 
 
 void RemoveBracket::redo()
       {
       staff->setBracket(level, NO_BRACKET);
+      staff->score()->setLayoutAll(true);
       }
 
 void RemoveBracket::undo()
       {
       staff->setBracket(level, type);
       staff->setBracketSpan(level, span);
+      staff->score()->setLayoutAll(true);
       }
 
+//---------------------------------------------------------
+//   ChangeSpannerElements
+//---------------------------------------------------------
+
+void ChangeSpannerElements::flip()
+      {
+      Element* se = spanner->startElement();
+      Element* ee = spanner->endElement();
+      spanner->setStartElement(startElement);
+      spanner->setEndElement(endElement);
+      startElement = se;
+      endElement   = ee;
+      if (spanner->type() == Element::TIE) {
+            Tie* tie = static_cast<Tie*>(spanner);
+            static_cast<Note*>(endElement)->setTieBack(0);
+            tie->endNote()->setTieBack(tie);
+            static_cast<Note*>(startElement)->setTieFor(0);
+            tie->startNote()->setTieFor(tie);
+            }
+      spanner->score()->setLayoutAll(true);
+      }
 
 
 }

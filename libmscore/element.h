@@ -58,7 +58,7 @@ Q_DECLARE_OPERATORS_FOR_FLAGS(ElementFlags)
 //   PropertyStyle
 //---------------------------------------------------------
 
-enum class PropertyStyle {
+enum class PropertyStyle : char {
       NOSTYLE, UNSTYLED, STYLED
       };
 
@@ -494,7 +494,7 @@ class Element : public QObject {
 
       virtual qreal mag() const                { return _mag;   }
       qreal magS() const;
-      virtual void setMag(qreal val)           { _mag = val;    }
+      void setMag(qreal val)           { _mag = val;    }
 
       bool isText() const;
 

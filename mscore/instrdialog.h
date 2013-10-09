@@ -35,6 +35,7 @@ class Part;
 class Staff;
 class StaffType;
 class Score;
+class InstrumentGenre;
 
 enum { ITEM_KEEP, ITEM_DELETE, ITEM_ADD, ITEM_UPDATE };
 enum { PART_LIST_ITEM = QTreeWidgetItem::UserType, STAFF_LIST_ITEM };
@@ -131,10 +132,14 @@ class InstrumentsDialog : public QDialog, public Ui::InstrumentDialogBase {
       void on_search_textChanged(const QString &searchPhrase);
       void on_clearSearch_clicked();
 
+      void on_instrumentGenreFilter_currentIndexChanged(int);
+      void filterInstrumentsByGenre(QTreeWidget *, QString);
+
    public:
       InstrumentsDialog(QWidget* parent = 0);
       void setScore(Score* s) { cs = s; }
       void genPartList();
+      void writeSettings();
       };
 
 //---------------------------------------------------------
@@ -154,8 +159,12 @@ class InstrumentTemplateListItem : public QTreeWidgetItem {
       virtual QString text(int col) const;
       };
 
-extern void populateInstrumentList(QTreeWidget* instrumentList, bool extended);
+extern void populateInstrumentList(QTreeWidget* instrumentList);
+extern void populateGenreCombo(QComboBox* combo);
 
 } // namespace Ms
+
+extern QList<Ms::InstrumentGenre *> instrumentGenres;
+
 #endif
 

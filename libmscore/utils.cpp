@@ -134,14 +134,16 @@ Segment* Score::tick2segmentEnd(int track, int tick) const
       }
 
 //---------------------------------------------------------
-//   tick2nearestSegment
+//   tick2leftSegment
+/// return the segment at this tick position if any or
+/// the first segment *before* this tick position
 //---------------------------------------------------------
 
-Segment* Score::tick2nearestSegment(int tick) const
+Segment* Score::tick2leftSegment(int tick) const
       {
       Measure* m = tick2measure(tick);
       if (m == 0) {
-            qDebug("tick2nearestSegment(): not found tick %d\n", tick);
+            qDebug("tick2leftSegment(): not found tick %d\n", tick);
             return 0;
             }
       // loop over all segments
@@ -152,6 +154,27 @@ Segment* Score::tick2nearestSegment(int tick) const
             else if (tick == s->tick())
                   return s;
             ps = s;
+            }
+      return ps;
+      }
+
+//---------------------------------------------------------
+//   tick2rightSegment
+/// return the segment at this tick position if any or
+/// the first segment *after* this tick position
+//---------------------------------------------------------
+
+Segment* Score::tick2rightSegment(int tick) const
+      {
+      Measure* m = tick2measure(tick);
+      if (m == 0) {
+            qDebug("tick2nearestSegment(): not found tick %d\n", tick);
+            return 0;
+            }
+      // loop over all segments
+      for (Segment* s = m->first(Segment::SegChordRest); s; s = s->next(Segment::SegChordRest)) {
+            if (tick <= s->tick())
+                  return s;
             }
       return 0;
       }
@@ -264,7 +287,7 @@ int pitchKeyAdjust(int step, int key)
 //   y2pitch
 //---------------------------------------------------------
 
-int y2pitch(qreal y, int clef, qreal _spatium)
+int y2pitch(qreal y, ClefType clef, qreal _spatium)
       {
       int l = lrint(y / _spatium * 2.0);
       return line2pitch(l, clef, 0);
@@ -275,9 +298,9 @@ int y2pitch(qreal y, int clef, qreal _spatium)
 //    key  -7 ... +7
 //---------------------------------------------------------
 
-int line2pitch(int line, int clef, int key)
+int line2pitch(int line, ClefType clef, int key)
       {
-      int l      = clefTable[clef].pitchOffset - line;
+      int l      = ClefInfo::pitchOffset(clef) - line;
       int octave = 0;
       while (l < 0) {
             l += 7;
@@ -628,6 +651,42 @@ Note* searchTieNote(Note* note)
       }
 
 //---------------------------------------------------------
+//   searchTieNote114
+//    search Note to tie to "note", tie to next note in
+//    same voice
+//---------------------------------------------------------
+
+Note* searchTieNote114(Note* note)
+      {
+      Note* note2  = 0;
+      Chord* chord = note->chord();
+      Segment* seg = chord->segment();
+      Part* part   = chord->staff()->part();
+      int strack   = part->staves()->front()->idx() * VOICES;
+      int etrack   = strack + part->staves()->size() * VOICES;
+
+      while ((seg = seg->next1(Segment::SegChordRest))) {
+            for (int track = strack; track < etrack; ++track) {
+                  Chord* c = static_cast<Chord*>(seg->element(track));
+                  if (c == 0 || (c->type() != Element::CHORD) || (c->track() != chord->track()))
+                        continue;
+                  int staffIdx = c->staffIdx() + c->staffMove();
+                  if (staffIdx != chord->staffIdx() + chord->staffMove())  // cannot happen?
+                        continue;
+                  for (Note* n : c->notes()) {
+                        if (n->pitch() == note->pitch()) {
+                              if (note2 == 0 || c->track() == chord->track())
+                                    note2 = n;
+                              }
+                        }
+                  }
+            if (note2)
+                  break;
+            }
+      return note2;
+      }
+
+//---------------------------------------------------------
 //   absStep
 ///   Compute absolute step.
 ///   C D E F G A B ....
@@ -653,7 +712,7 @@ int absStep(int pitch)
 
 int absStep(int line, ClefType clef)
       {
-      return clefTable[clef].pitchOffset - line;
+      return ClefInfo::pitchOffset(clef) - line;
       }
 
 //---------------------------------------------------------
@@ -665,7 +724,7 @@ int absStep(int line, ClefType clef)
 
 int relStep(int line, ClefType clef)
       {
-      return clefTable[clef].pitchOffset - line;
+      return ClefInfo::pitchOffset(clef) - line;
       }
 
 int relStep(int pitch, int tpc, ClefType clef)

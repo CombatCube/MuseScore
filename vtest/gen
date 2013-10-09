@@ -1,0 +1,41 @@
+#!/bin/sh
+
+#
+# "compare" - image magick compare program
+#
+SRC="mmrest-1 mmrest-2 mmrest-4 mmrest-5 mmrest-6\
+ fmrest-1 fmrest-2 fmrest-3 fmrest-4 fmrest-5 measure-repeat-1 \
+ noteheadposition-1 valign-1"
+
+MSCORE=../build.debug/mscore/mscore
+DPI=130
+F=vtest.html
+
+rm -rf html
+mkdir html
+cd html
+
+for src in $SRC; do
+      echo process ../$src
+      cp ../$src-ref.png .
+      ../$MSCORE ../$src.mscz -r $DPI -o $src.png
+      compare $src-1.png $src-ref.png $src-diff.png
+      done
+
+rm -f $F
+echo "<html>" >> $F
+echo "  <body>" >> $F
+for src in $SRC; do
+      echo "    <h2 id=\"$src\">$src <a class=\"toc-anchor\" href=\"#$src\">#</a></h2>" >> $F
+      echo "    <div>" >> $F
+      echo "      <img src=\"$src-1.png\">" >> $F
+      echo "      <img src=\"$src-ref.png\">" >> $F
+      echo "      <img src=\"$src-diff.png\">" >> $F
+      echo "    </div>" >> $F
+      done
+echo "  </body>" >> $F
+echo "</html>" >> $F
+
+
+konqueror $F
+

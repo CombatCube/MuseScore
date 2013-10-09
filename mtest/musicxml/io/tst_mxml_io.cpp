@@ -75,11 +75,13 @@ private slots:
       void emptyVoice1() { mxmlIoTestRef("testEmptyVoice1"); }
       void figuredBass1() { mxmlIoTest("testFiguredBass1"); }
       void figuredBass2() { mxmlIoTest("testFiguredBass2"); }
-//      void grace1() { mxmlIoTest("testGrace1"); }
+      void grace1() { mxmlIoTest("testGrace1"); }
 //      void grace2() { mxmlIoTest("testGrace2"); }
       void harmony1() { mxmlIoTest("testHarmony1"); }
       void harmony2() { mxmlIoTest("testHarmony2"); }
+//      void harmony3() { mxmlIoTest("testHarmony3"); }
       void harmony4() { mxmlIoTest("testHarmony4"); }
+      void harmony5() { mxmlIoTest("testHarmony5"); } // chordnames without chordrest
       void hello() { mxmlIoTest("testHello"); }
       void helloReadCompr() { mxmlReadTestCompr("testHello"); }
       void helloReadWriteCompr() { mxmlReadWriteTestCompr("testHello"); }

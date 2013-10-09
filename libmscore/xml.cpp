@@ -15,6 +15,7 @@
 #include "spanner.h"
 #include "beam.h"
 #include "tuplet.h"
+#include "sym.h"
 
 namespace Ms {
 
@@ -32,21 +33,21 @@ XmlReader::XmlReader(QFile* d)
       _track = 0;
       }
 
-XmlReader::XmlReader(const QByteArray& d)
-   : QXmlStreamReader(d)
+XmlReader::XmlReader(const QByteArray& d, const QString& s)
+   : QXmlStreamReader(d), docName(s)
       {
       _tick  = 0;
       _track = 0;
       }
 
-XmlReader::XmlReader(QIODevice* d)
-   : QXmlStreamReader(d)
+XmlReader::XmlReader(QIODevice* d, const QString& s)
+   : QXmlStreamReader(d), docName(s)
       {
       _tick  = 0;
       _track = 0;
       }
 
-XmlReader::XmlReader(const QString& d)
+XmlReader::XmlReader(const QString& d, const QString& s)
    : QXmlStreamReader(d)
       {
       _tick  = 0;
@@ -488,14 +489,14 @@ void Xml::tag(P_ID id, QVariant data, QVariant defaultData)
                         }
                   break;
             case T_LAYOUT_BREAK:
-                  switch(LayoutBreakType(data.toInt())) {
-                        case LAYOUT_BREAK_LINE:
+                  switch(LayoutBreak::LayoutBreakType(data.toInt())) {
+                        case LayoutBreak::LINE:
                               tag(name, QVariant("line"));
                               break;
-                        case LAYOUT_BREAK_PAGE:
+                        case LayoutBreak::PAGE:
                               tag(name, QVariant("page"));
                               break;
-                        case LAYOUT_BREAK_SECTION:
+                        case LayoutBreak::SECTION:
                               tag(name, QVariant("section"));
                               break;
                         }
@@ -519,6 +520,9 @@ void Xml::tag(P_ID id, QVariant data, QVariant defaultData)
                               tag(name, QVariant("below"));
                               break;
                         }
+                  break;
+            case T_SYMID:
+                  tag(name, Sym::id2name(SymId(data.toInt())));
                   break;
             default:
                   abort();

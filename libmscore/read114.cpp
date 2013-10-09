@@ -91,6 +91,7 @@ static const StyleVal2 style114[] = {
       { ST_propertyDistanceHead,         QVariant(1.0) },
       { ST_propertyDistanceStem,         QVariant(0.5) },
       { ST_propertyDistance,             QVariant(1.0) },
+      { ST_articulationMag,              QVariant(qreal(1.0)) },
       { ST_lastSystemFillLimit,          QVariant(0.3) },
       { ST_hairpinHeight,                QVariant(1.2) },
       { ST_hairpinContHeight,            QVariant(0.5) },
@@ -132,7 +133,15 @@ static const StyleVal2 style114[] = {
       { ST_ArpeggioHookLen,              QVariant(.8) },
       { ST_FixMeasureNumbers,            QVariant(0) },
       { ST_FixMeasureWidth,              QVariant(false) },
-      { ST_keySigNaturals,               QVariant(NAT_BEFORE) }
+      { ST_keySigNaturals,               QVariant(NAT_BEFORE) },
+      { ST_tupletMaxSlope,               QVariant(qreal(0.5)) },
+      { ST_tupletOufOfStaff,             QVariant(false) },
+      { ST_tupletVHeadDistance,          QVariant(.5) },
+      { ST_tupletVStemDistance,          QVariant(.25) },
+      { ST_tupletStemLeftDistance,       QVariant(.5) },
+      { ST_tupletStemRightDistance,      QVariant(.5) },
+      { ST_tupletNoteLeftDistance,       QVariant(0.0) },
+      { ST_tupletNoteRightDistance,      QVariant(0.0) }
       };
 
 //---------------------------------------------------------
@@ -157,7 +166,7 @@ static SymId resolveSymCompatibility(SymId i, QString programVersion)
 //   Staff::read114
 //---------------------------------------------------------
 
-void Staff::read114(XmlReader& e, ClefList& _clefList)
+void Staff::read114(XmlReader& e)
       {
       while (e.readNextStartElement()) {
             const QStringRef& tag(e.name());
@@ -169,8 +178,13 @@ void Staff::read114(XmlReader& e, ClefList& _clefList)
                   setInvisible(e.readInt());
             else if (tag == "slashStyle")
                   e.skipCurrentElement();
-            else if (tag == "cleflist")
-                  _clefList.read(e, _score);
+            else if (tag == "cleflist") {
+                  clefs.read(e, _score);
+                  if (clefs.empty()) {
+                        ClefType ct = Clef::clefType("0");
+                        clefs.setClef(0, ClefTypeList(ct, ct));
+                        }
+                  }
             else if (tag == "keylist")
                   _keymap.read(e, _score);
             else if (tag == "bracket") {
@@ -200,9 +214,7 @@ void Part::read114(XmlReader& e)
                   Staff* staff = new Staff(_score, this, rstaff);
                   _score->staves().push_back(staff);
                   _staves.push_back(staff);
-                  ClefList* cl = new ClefList;
-                  e.clefListList().append(cl);
-                  staff->read114(e, *cl);
+                  staff->read114(e);
                   ++rstaff;
                   }
             else if (tag == "Instrument") {
@@ -242,7 +254,7 @@ void Part::read114(XmlReader& e)
       if (instr(0)->useDrumset()) {
             foreach(Staff* staff, _staves) {
                   int lines = staff->lines();
-                  staff->setStaffType(score()->staffType(PERCUSSION_STAFF_TYPE));
+                  staff->setStaffType(score()->staffType(PERC_DEFAULT_STAFF_TYPE));
                   staff->setLines(lines);
                   }
             }
@@ -378,13 +390,16 @@ Score::FileError Score::read114(XmlReader& e)
                         s->setTick(e.tick());
                   else
                         e.setTick(s->tick());      // update current tick
+                  if (s->track2() == -1)
+                        s->setTrack2(s->track());
                   if (s->tick2() == -1) {
                         delete s;
                         qDebug("invalid spanner %s tick2: %d\n",
                            s->name(), s->tick2());
                         }
-                  else
+                  else {
                         addSpanner(s);
+                        }
                   }
             else if (tag == "Excerpt") {
                   Excerpt* ex = new Excerpt(this);
@@ -418,10 +433,9 @@ Score::FileError Score::read114(XmlReader& e)
                   s->setBarLineSpan(n - idx);
                   }
 
-            ClefList* cl = e.clefListList().at(idx);
-            for (auto i = cl->constBegin(); i != cl->constEnd(); ++i) {
-                  int tick = i.key();
-                  ClefType clefId = i.value()._concertClef;
+            for (auto i = s->clefList().cbegin(); i != s->clefList().cend(); ++i) {
+                  int tick = i->first;
+                  ClefType clefId = i->second._concertClef;
                   Measure* m = tick2measure(tick);
                   if (!m)
                         continue;
@@ -465,10 +479,33 @@ Score::FileError Score::read114(XmlReader& e)
                         }
                   }
             }
-      qDeleteAll(e.clefListList());
 
       for (std::pair<int,Spanner*> p : spanner()) {
             Spanner* s = p.second;
+            if (s->anchor() == Spanner::ANCHOR_SEGMENT && s->type() != Element::SLUR) {
+                  Segment* segment = tick2segment(s->tick2(), true, Segment::SegChordRest);
+                  if (segment) {
+                        segment = segment->prev1(Segment::SegChordRest);
+                        if (segment)
+                              s->setTick2(segment->tick());
+                        else
+                              qDebug("1:no segment for tick %d", s->tick2());
+                        }
+                  else {
+                        Measure* m = lastMeasure();
+                        segment = m->last();
+                        if (!segment)
+                              qDebug("2:no segment for tick %d", s->tick2());
+                        else {
+                              if (segment->segmentType() != Segment::SegChordRest)
+                                    segment = segment->prev1(Segment::SegChordRest);
+                              if (segment)
+                                    s->setTick2(segment->tick());
+                              else
+                                    qDebug("3:no segment for tick %d", s->tick2());
+                              }
+                        }
+                  }
             if (s->type() == Element::OTTAVA
                || (s->type() == Element::TEXTLINE)
                || (s->type() == Element::VOLTA)
@@ -490,13 +527,15 @@ Score::FileError Score::read114(XmlReader& e)
             if (s->type() == Element::OTTAVA) {
                   // fix ottava position
                   Ottava* ottava = static_cast<Ottava*>(s);
-                  int n = ottava->spannerSegments().size();
-                  for (int i = 0; i < n; ++i) {
-                        LineSegment* seg = ottava->segmentAt(i);
-                        if (!seg->userOff().isNull())
-                              seg->setUserYoffset(seg->userOff().y() - styleP(ST_ottavaY));
-                        }
                   ottava->staff()->updateOttava(ottava);
+
+                  qreal yo(styleS(ST_ottavaY).val() * spatium());
+                  if (ottava->placement() == Element::BELOW)
+                        yo = -yo + ottava->staff()->height();
+                  for (SpannerSegment* seg : ottava->spannerSegments()) {
+                        if (!seg->userOff().isNull())
+                              seg->setUserYoffset(seg->userOff().y() - yo);
+                        }
                   }
             }
 
@@ -508,31 +547,42 @@ Score::FileError Score::read114(XmlReader& e)
       //
       for (Measure* m = firstMeasure(); m; m = m->nextMeasure()) {
             int tracks = nstaves() * VOICES;
+            bool first = true;
             for (int track = 0; track < tracks; ++track) {
                   for (Segment* s = m->first(); s; s = s->next()) {
                         if (s->segmentType() != Segment::SegChordRest)
                               continue;
                         ChordRest* cr = static_cast<ChordRest*>(s->element(track));
                         if (cr) {
-                              switch(cr->beamMode()) {
-                                    case BeamMode::AUTO:
-                                    case BeamMode::BEGIN:
-                                    case BeamMode::END:
-                                    case BeamMode::NONE:
-                                          break;
-                                    case BeamMode::MID:
-                                    case BeamMode::BEGIN32:
-                                    case BeamMode::BEGIN64:
-                                          cr->setBeamMode(BeamMode::BEGIN);
-                                          break;
-                                    case BeamMode::INVALID:
-                                          if (cr->type() == Element::CHORD)
-                                                cr->setBeamMode(BeamMode::AUTO);
-                                          else
-                                                cr->setBeamMode(BeamMode::NONE);
-                                          break;
+                              if(cr->type() == Element::REST) {
+                                    Rest* r = static_cast<Rest*>(cr);
+                                    if (!r->userOff().isNull()) {
+                                          int lineOffset = r->computeLineOffset();
+                                          qreal lineDist = r->staff() ? r->staff()->staffType()->lineDistance().val() : 1.0;
+                                          r->rUserYoffset() -= (lineOffset * .5 * lineDist * r->spatium());
+                                          }
                                     }
-                              break;
+                              if(!first) {
+                                    switch(cr->beamMode()) {
+                                          case BeamMode::AUTO:
+                                          case BeamMode::BEGIN:
+                                          case BeamMode::END:
+                                          case BeamMode::NONE:
+                                                break;
+                                          case BeamMode::MID:
+                                          case BeamMode::BEGIN32:
+                                          case BeamMode::BEGIN64:
+                                                cr->setBeamMode(BeamMode::BEGIN);
+                                                break;
+                                          case BeamMode::INVALID:
+                                                if (cr->type() == Element::CHORD)
+                                                      cr->setBeamMode(BeamMode::AUTO);
+                                                else
+                                                      cr->setBeamMode(BeamMode::NONE);
+                                                break;
+                                          }
+                                    first = false;
+                                    }
                               }
                         }
                   }
@@ -584,6 +634,7 @@ Score::FileError Score::read114(XmlReader& e)
                   nscore->setName(excerpt->title());
                   nscore->rebuildMidiMapping();
                   nscore->updateChannel();
+                  nscore->updateNotes();
                   nscore->addLayoutFlags(LAYOUT_FIX_PITCH_VELO);
                   nscore->doLayout();
                   excerpt->setScore(nscore);
@@ -592,7 +643,6 @@ Score::FileError Score::read114(XmlReader& e)
 
 //      _mscVersion = MSCVERSION;     // for later drag & drop usage
       fixTicks();
-      renumberMeasures();
       rebuildMidiMapping();
       updateChannel();
       updateNotes();    // only for parts needed?
@@ -612,6 +662,29 @@ Score::FileError Score::read114(XmlReader& e)
                   }
             }
 
+      for (std::pair<int,Spanner*> p : spanner()) {
+            Spanner* s = p.second;
+            if (s->type() == Element::OTTAVA) {
+                  qreal dx = 0.0;
+                  Segment* s1 = tick2segment(s->tick2(), true, Segment::SegChordRest);
+                  if (s1) {
+                        qreal x1 = s1->pagePos().x();
+                        qreal x2;
+                        Segment* s2 = s1->next1(Segment::SegChordRest);
+                        if (s2)
+                              x2 = s2->pagePos().x();
+                        else
+                              x2 = lastMeasure()->pagePos().x() + lastMeasure()->width();
+
+                        dx =  x2 - x1 - s->spatium() * 2.0;
+                        }
+
+                  Ottava* o = static_cast<Ottava*>(s);
+                  for (SpannerSegment* seg : o->spannerSegments()) {
+                        seg->setUserOff2(QPointF(seg->userOff2().x() + dx, seg->userOff2().y()));
+                        }
+                  }
+            }
       return FILE_NO_ERROR;
       }
 

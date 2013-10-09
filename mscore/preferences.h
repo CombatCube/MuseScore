@@ -144,17 +144,18 @@ struct Preferences {
       int checkUpdateStartup;
 
       bool followSong;
-      QString importCharset;
+      QString importCharsetOve;
+      QString importCharsetGP;
       QString importStyleFile;
       int shortestNote;             // for midi input
       MidiImportOperations midiImportOperations;
-
 
       bool useOsc;
       int oscPort;
       bool singlePalette;
       QString styleName;
       int globalStyle;        // 0 - dark, 1 - light
+      bool animations;
 
       QString myScoresPath;
       QString myStylesPath;
@@ -164,9 +165,6 @@ struct Preferences {
 
       QString sfPath;
       QString sfzPath;
-
-      double nudgeStep10;     // Ctrl + cursor key (default 1.0)
-      double nudgeStep50;     // Alt  + cursor key (default 5.0)
 
       bool nativeDialogs;
 

@@ -447,9 +447,9 @@ QColor Element::curColor() const
             return MScore::dropColor;
       bool marked = false;
       if (type() == Element::NOTE) {
-         const Note* note = static_cast<const Note*>(this);
-         marked = note->mark();
-         }
+            const Note* note = static_cast<const Note*>(this);
+            marked = note->mark();
+            }
       if (_selected || marked ) {
             if (track() == -1)
                   return MScore::selectColor[0];
@@ -506,13 +506,15 @@ QPointF Element::pagePos() const
                   system = static_cast<Segment*>(parent())->measure()->system();
             else if (parent()->type() == MEASURE)     // used in measure number
                   system = static_cast<Measure*>(parent())->system();
+            else if (parent()->type() == SYSTEM)
+                  system = static_cast<System*>(parent());
             else
                   abort();
             if (system) {
                   int si = staffIdx();
                   if (type() == CHORD || type() == REST)
                         si += static_cast<const ChordRest*>(this)->staffMove();
-                  p.ry() += system->staffY(si); // system->staff(si)->y() + system->y();
+                  p.ry() += system->staffYpage(si); // system->staff(si)->y() + system->y();
                   }
             p.rx() = pageX();
             }
@@ -538,13 +540,15 @@ QPointF Element::canvasPos() const
                   system = static_cast<Segment*>(parent())->measure()->system();
             else if (parent()->type() == MEASURE)     // used in measure number
                   system = static_cast<Measure*>(parent())->system();
+            else if (parent()->type() == SYSTEM)
+                  system = static_cast<System*>(parent());
             else
                   abort();
             if (system) {
                   int si = staffIdx();
                   if (type() == CHORD || type() == REST)
                         si += static_cast<const ChordRest*>(this)->staffMove();
-                  p.ry() += system->staffY(si); // system->staff(si)->y() + system->y();
+                  p.ry() += system->staffYpage(si); // system->staff(si)->y() + system->y();
                   Page* page = system->page();
                   if (page)
                         p.ry() += page->y();
@@ -685,10 +689,6 @@ bool Element::readProperties(XmlReader& e)
             e.readInt();
       else if (tag == "userOff")
             _userOff = e.readPoint();
-      else if (tag == "color")
-            _color = e.readColor();
-      else if (tag == "selected")
-            _selected = e.readInt();
       else if (tag == "lid") {
             int id = e.readInt();
             _links = score()->links().value(id);
@@ -717,8 +717,11 @@ bool Element::readProperties(XmlReader& e)
             }
       else if (tag == "offset")
             setUserOff(e.readPoint() * spatium());
-      else if (tag == "pos")
-            _readPos = e.readPoint() * spatium();
+      else if (tag == "pos") {
+            QPointF pt = e.readPoint();
+            if (score()->mscVersion() > 114)
+                  _readPos = pt * spatium();
+            }
       else if (tag == "voice")
             setTrack((_track/VOICES)*VOICES + e.readInt());
       else if (tag == "tag") {

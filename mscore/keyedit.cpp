@@ -52,7 +52,7 @@ KeyCanvas::KeyCanvas(QWidget* parent)
       a->setShortcut(Qt::Key_Delete);
       addAction(a);
       clef = new Clef(gscore);
-      clef->setClefType(CLEF_G);
+      clef->setClefType(ClefType::G);
       connect(a, SIGNAL(triggered()), SLOT(deleteElement()));
       }
 
@@ -110,7 +110,10 @@ void KeyCanvas::paintEvent(QPaintEvent*)
 
       QRectF r = imatrix.mapRect(QRectF(x, y, w, wh));
 
-      QPen pen(palette().brush(QPalette::Normal, QPalette::Text).color());
+      QRectF background = imatrix.mapRect(QRectF(0, 0, ww, wh));
+      painter.fillRect(background, Qt::white);
+
+      QPen pen(Qt::black);
       pen.setWidthF(MScore::defaultStyle()->value(ST_staffLineWidth).toDouble() * spatium);
       painter.setPen(pen);
 
@@ -127,8 +130,6 @@ void KeyCanvas::paintEvent(QPaintEvent*)
       foreach(Accidental* a, accidentals) {
             painter.save();
             painter.translate(a->pagePos());
-//            painter.setPen(QPen(a->curColor()));
-            painter.setPen(QPen(Qt::white));
             a->draw(&painter);
             painter.restore();
             }
@@ -279,12 +280,12 @@ KeyEditor::KeyEditor(QWidget* parent)
       sp = MuseScore::newKeySigPalette();
       sp->setReadOnly(false);
 
-      PaletteScrollArea* keyPalette = new PaletteScrollArea(sp);
+      _keyPalette = new PaletteScrollArea(sp);
       QSizePolicy policy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-      keyPalette->setSizePolicy(policy);
-      keyPalette->setRestrictHeight(false);
+      _keyPalette->setSizePolicy(policy);
+      _keyPalette->setRestrictHeight(false);
 
-      l->addWidget(keyPalette);
+      l->addWidget(_keyPalette);
 
       // create accidental palette
 
@@ -348,6 +349,7 @@ void KeyEditor::addClicked()
       sp->append(ks, "custom");
       _dirty = true;
       sp->updateGeometry();
+      _keyPalette->adjustSize();
       }
 
 //---------------------------------------------------------

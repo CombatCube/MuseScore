@@ -42,9 +42,11 @@
 #include "libmscore/system.h"
 #include "libmscore/tablature.h"
 #include "libmscore/undo.h"
+#include "libmscore/keysig.h"
 
 namespace Ms {
 
+extern bool useFactorySettings;
 void filterInstruments(QTreeWidget *instrumentList, const QString &searchPhrase = QString(""));
 
 //---------------------------------------------------------
@@ -59,7 +61,7 @@ StaffListItem::StaffListItem(PartListItem* li)
       setPartIdx(0);
       staffIdx = 0;
       setLinked(false);
-      setClef(ClefTypeList(CLEF_G, CLEF_G));
+      setClef(ClefTypeList(ClefType::G, ClefType::G));
       _staffTypeCombo = 0;
       initStaffTypeCombo();
       }
@@ -71,7 +73,7 @@ StaffListItem::StaffListItem()
       staff    = 0;
       setPartIdx(0);
       staffIdx = 0;
-      setClef(ClefTypeList(CLEF_G, CLEF_G));
+      setClef(ClefTypeList(ClefType::G, ClefType::G));
       setLinked(false);
       _staffTypeCombo = 0;
       }
@@ -97,18 +99,18 @@ void StaffListItem::initStaffTypeCombo(bool forceRecreate)
       PartListItem* part = static_cast<PartListItem*>(QTreeWidgetItem::parent());
       // PartListItem has different members filled out if used in New Score Wizard or in Instruments Wizard
       if (part) {
-            Tablature* tab = part->it ? part->it->tablature :
-                        ( (part->part && part->part->instr(0)) ? part->part->instr(0)->tablature() : 0);
-            canUseTabs = tab && tab->strings() > 0;
+            StringData* stringData = part->it ? part->it->stringData :
+                        ( (part->part && part->part->instr(0)) ? part->part->instr(0)->stringData() : 0);
+            canUseTabs = stringData && stringData->strings() > 0;
             canUsePerc = part->it ? part->it->useDrumset :
                         ( (part->part && part->part->instr(0)) ? part->part->instr(0)->useDrumset() : false);
             }
       _staffTypeCombo = new QComboBox();
       _staffTypeCombo->setAutoFillBackground(true);
       foreach (STAFF_LIST_STAFF_TYPE staffTypeData, staffTypeList)
-            if ( (canUseTabs && staffTypeData.staffType->group() == TAB_STAFF)
-                        || ( canUsePerc && staffTypeData.staffType->group() == PERCUSSION_STAFF)
-                        || (!canUsePerc && staffTypeData.staffType->group() == PITCHED_STAFF) )
+            if ( (canUseTabs && staffTypeData.staffType->group() == TAB_STAFF_GROUP)
+                        || ( canUsePerc && staffTypeData.staffType->group() == PERCUSSION_STAFF_GROUP)
+                        || (!canUsePerc && staffTypeData.staffType->group() == STANDARD_STAFF_GROUP) )
                   _staffTypeCombo->addItem(staffTypeData.displayName, staffTypeData.idx);
       treeWidget()->setItemWidget(this, 4, _staffTypeCombo);
       connect(_staffTypeCombo, SIGNAL(currentIndexChanged(int)), SLOT(staffTypeChanged(int)) );
@@ -131,7 +133,7 @@ void StaffListItem::setPartIdx(int val)
 void StaffListItem::setClef(const ClefTypeList& val)
       {
       _clef = val;
-      setText(2, qApp->translate("clefTable", clefTable[_clef._transposingClef].name));
+      setText(2, qApp->translate("clefTable", ClefInfo::name(_clef._transposingClef)));
       }
 
 //---------------------------------------------------------
@@ -184,17 +186,17 @@ void StaffListItem::staffTypeChanged(int idx)
       // check current clef matches new staff type
       int staffTypeIdx = _staffTypeCombo->itemData(idx).toInt();
       const StaffType* stfType = getListedStaffType(staffTypeIdx);
-      if (stfType->group() != clefTable[_clef._transposingClef].staffGroup) {
+      if (stfType->group() != ClefInfo::staffGroup(_clef._transposingClef)) {
             ClefType clefType;
             switch (stfType->group()) {
-                  case PITCHED_STAFF:
-                        clefType = CLEF_G2;
+                  case STANDARD_STAFF_GROUP:
+                        clefType = ClefType::G2;
                         break;
-                  case TAB_STAFF:
-                        clefType = CLEF_TAB2;
+                  case TAB_STAFF_GROUP:
+                        clefType = ClefType::TAB2;
                         break;
-                  case PERCUSSION_STAFF:
-                        clefType = CLEF_PERC;
+                  case PERCUSSION_STAFF_GROUP:
+                        clefType = ClefType::PERC;
                         break;
                   }
             setClef(ClefTypeList(clefType, clefType));
@@ -208,6 +210,23 @@ void StaffListItem::staffTypeChanged(int idx)
 //   static members
 //---------------------------------------------------------
 
+//---------------------------------------------------------
+//   populateStaffTypes
+//
+//    Contructs a list of all staff types OR presets for a given score.
+//    The list can be accessed later with getListedStaffType().
+//    The list is intended to be used to populate the staff type/preset drop down lists and its
+//    contents and order are optimized for this.
+//
+//    If the score contains some staff type, staff types are listed; if there is no score or it
+//    has no staff types (as it happens for new scores with the New Score Wizard), presets are listed instead.
+//
+//    The list is sorted by staff group: Standard, Percussion, Tab.
+//
+//    Currently, the staff type list is used by the New Instrument page of the New Score Wizard
+//    and by the "Add | Instruments" dlg box.
+//---------------------------------------------------------
+
 std::vector<StaffListItem::STAFF_LIST_STAFF_TYPE> StaffListItem::staffTypeList;
 Score * StaffListItem::_score = 0;
 
@@ -218,22 +237,33 @@ void StaffListItem::populateStaffTypes(Score *score)
 
       staffTypeList.clear();
       _score = score;
-      if (score) {
-            idx = -1;
-            foreach(StaffType** staffType, score->staffTypes() ) {
-                  staffTypeData.idx             = idx;
-                  staffTypeData.displayName     = (*staffType)->name();
-                  staffTypeData.staffType       = *staffType;
-                  staffTypeList.push_back(staffTypeData);
-                  idx--;
-                  }
-            }
       int numOfPresets = StaffType::numOfPresets();
-      for (idx = 0; idx < numOfPresets; idx++) {
-            staffTypeData.idx             = idx;
-            staffTypeData.staffType       = StaffType::preset(idx);
-            staffTypeData.displayName     = staffTypeData.staffType->name();
-            staffTypeList.push_back(staffTypeData);
+      // sort staff types by group
+      for (int group=0; group < STAFF_GROUP_MAX; group++) {
+            // if there is a score and it has some staff types, list them
+            if (score && score->staffTypes().count() > 0) {
+                  idx = 0;
+                  foreach(StaffType** staffType, score->staffTypes() ) {
+                        if ( (*staffType)->group() == group && !(*staffType)->builtin() ) {
+                              staffTypeData.idx             = idx;
+                              staffTypeData.displayName     = (*staffType)->name();
+                              staffTypeData.staffType       = *staffType;
+                              staffTypeList.push_back(staffTypeData);
+                              }
+                        idx++;
+                        }
+                  }
+            else {
+                  // otherwise, list presets
+                  for (idx = 0; idx < numOfPresets; idx++) {
+                        if ( StaffType::preset(idx)->group() == group) {
+                              staffTypeData.idx             = idx;
+                              staffTypeData.staffType       = StaffType::preset(idx);
+                              staffTypeData.displayName     = staffTypeData.staffType->name();
+                              staffTypeList.push_back(staffTypeData);
+                              }
+                        }
+                  }
             }
       }
 
@@ -359,26 +389,50 @@ InstrumentsDialog::InstrumentsDialog(QWidget* parent)
       downButton->setEnabled(false);
       belowButton->setEnabled(false);
       linkedButton->setEnabled(false);
-      connect(showMore, SIGNAL(clicked()), SLOT(buildTemplateList()));
+
+      if (!useFactorySettings) {
+            QSettings settings;
+            settings.beginGroup("Instruments");
+            resize(settings.value("size", QSize(800, 500)).toSize());
+            move(settings.value("pos", QPoint(10, 10)).toPoint());
+            settings.endGroup();
+            }
+
       connect(instrumentList, SIGNAL(clicked(const QModelIndex &)), SLOT(expandOrCollapse(const QModelIndex &)));
       }
 
 //---------------------------------------------------------
-//   populateInstrumentList
+//   populateGenreCombo
 //---------------------------------------------------------
 
-void populateInstrumentList(QTreeWidget* instrumentList, bool extended)
+void populateGenreCombo(QComboBox* combo)
+      {
+            combo->clear();
+            combo->addItem(QT_TR_NOOP("All instruments"), "all");
+            int i = 1;
+            int defaultIndex = 0;
+            foreach(InstrumentGenre *ig, instrumentGenres) {
+                  combo->addItem(ig->name, ig->id);
+                  if(ig->id == "common")
+                        defaultIndex = i;
+                  ++i;
+                  }
+            combo->setCurrentIndex(defaultIndex);
+      }
+
+
+//---------------------------------------------------------
+ //   populateInstrumentList
+//---------------------------------------------------------
+
+void populateInstrumentList(QTreeWidget* instrumentList)
       {
       instrumentList->clear();
       // TODO: memory leak
       foreach(InstrumentGroup* g, instrumentGroups) {
-            if (!extended && g->extended)
-                  continue;
             InstrumentTemplateListItem* group = new InstrumentTemplateListItem(g->name, instrumentList);
             group->setFlags(Qt::ItemIsEnabled);
             foreach(InstrumentTemplate* t, g->instrumentTemplates) {
-                  if (!extended && t->extended)
-                        continue;
                   new InstrumentTemplateListItem(t, group);
                   }
             }
@@ -394,7 +448,8 @@ void InstrumentsDialog::buildTemplateList()
       search->clear();
       filterInstruments(instrumentList, search->text());
 
-      populateInstrumentList(instrumentList, showMore->isChecked());
+      populateInstrumentList(instrumentList);
+      populateGenreCombo(instrumentGenreFilter);
       }
 
 //---------------------------------------------------------
@@ -445,7 +500,7 @@ void InstrumentsDialog::genPartList()
                         }
                   sli->setLinked(bLinked);
                   int staffTypeIdx = cs->staffTypeIdx(s->staffType());
-                  sli->setStaffType(staffTypeIdx != -1 ? -staffTypeIdx - 1 : -1);
+                  sli->setStaffType(staffTypeIdx);
                   }
             partiturList->setItemExpanded(pli, true);
             }
@@ -866,11 +921,35 @@ void MuseScore::editInstrList()
             rootScore->endCmd();
             return;
             }
-        rootScore->inputState().setTrack(-1);
+      rootScore->inputState().setTrack(-1);
+
+      // keep the keylist of the first staff to apply it to new ones
+      KeyList tmpKeymap;
+      Staff* firstStaff = nullptr;
+      for(Staff* s : rootScore->staves()) {
+            KeyList* km = s->keymap();
+            if(!s->isDrumStaff()) {
+                  tmpKeymap.insert(km->begin(), km->end());
+                  firstStaff = s;
+                  break;
+                  }
+            }
+      //normalize the keyevent to concert pitch if necessary
+      if (firstStaff && !rootScore->styleB(ST_concertPitch) && firstStaff->part()->instr()->transpose().chromatic ) {
+                  int interval = firstStaff->part()->instr()->transpose().chromatic;
+                  for (auto i = tmpKeymap.begin(); i != tmpKeymap.end(); ++i) {
+                        int tick = i->first;
+                        KeySigEvent oKey = i->second;
+                        int nKeyType = transposeKey(oKey.accidentalType(), interval);
+                        KeySigEvent nKey;
+                        nKey.setAccidentalType(nKeyType);
+                        tmpKeymap[tick] = nKey;
+                        }
+                  }
+
       //
       // process modified partitur list
       //
-
       QTreeWidget* pl = instrList->partiturList;
       Part* part   = 0;
       int staffIdx = 0;
@@ -906,6 +985,8 @@ void MuseScore::editInstrList()
                   pli->part = part;
                   QTreeWidgetItem* ci = 0;
                   rstaff = 0;
+                  QList<Staff*> linked;
+                  QList<Staff*> nonLinked;
                   for (int cidx = 0; (ci = pli->child(cidx)); ++cidx) {
                         StaffListItem* sli = static_cast<StaffListItem*>(ci);
                         Staff* staff       = new Staff(rootScore, part, rstaff);
@@ -913,18 +994,41 @@ void MuseScore::editInstrList()
                         staff->setRstaff(rstaff);
 
                         staff->init(t, sli->staffType(), cidx);
-                        staff->setInitialClef(sli->clef());
+                        staff->setClef(0, sli->clef());
 
                         rootScore->undoInsertStaff(staff, staffIdx + rstaff);
-                        if (sli->linked()) {
-                              // TODO: link staff
-                              qDebug("TODO: link staff\n");
+                        Staff* linkedStaff = part->staves()->front();
+                        if (sli->linked() && linkedStaff != staff) {
+                              linkedStaff->linkTo(staff);
+                              cloneStaff(linkedStaff, staff);
+                              linked.append(staff);
                               }
-
+                        else {
+                              nonLinked.append(staff);
+                              }
                         ++rstaff;
                         }
-                  part->staves()->front()->setBarLineSpan(part->nstaves());
-                  rootScore->cmdInsertPart(part, staffIdx);
+                  if(linked.size() == 0)
+                        part->staves()->front()->setBarLineSpan(part->nstaves());
+                  //equivalent to cmdInsertPart(part, staffIdx)
+                  // but we donnt add rests for linked parts
+                  rootScore->undoInsertPart(part, staffIdx);
+                  for(Staff* s : nonLinked) {
+                        int si = rootScore->staffIdx(s);
+                        for (Measure* m = rootScore->firstMeasure(); m; m = m->nextMeasure())
+                              m->cmdAddStaves(si, si + 1, true);
+                        }
+                  for(Staff* s : linked) {
+                        int si = rootScore->staffIdx(s);
+                        for (Measure* m = rootScore->firstMeasure(); m; m = m->nextMeasure())
+                              m->cmdAddStaves(si, si + 1, false);
+                        }
+                  int sidx = rootScore->staffIdx(part);
+                  int eidx = sidx + part->nstaves();
+                  rootScore->adjustBracketsIns(sidx, eidx);
+                  //insert keysigs
+                  if(firstStaff)
+                        rootScore->adjustKeySigs(sidx, eidx, tmpKeymap);
                   staffIdx += rstaff;
                   }
             else {
@@ -968,7 +1072,7 @@ void MuseScore::editInstrList()
 
                               rootScore->adjustBracketsIns(staffIdx, staffIdx+1);
                               staff->initFromStaffType(sli->staffType());
-                              staff->setInitialClef(sli->clef());
+                              staff->setClef(0, sli->clef());
                               KeySigEvent nKey = part->staff(0)->key(0);
                               staff->setKey(0, nKey);
 
@@ -978,6 +1082,8 @@ void MuseScore::editInstrList()
                                     linkedStaff->linkTo(staff);
                                     cloneStaff(linkedStaff, staff);
                                     }
+                              if(firstStaff && !sli->linked())
+                                    rootScore->adjustKeySigs(staffIdx, staffIdx+1, tmpKeymap);
                               ++staffIdx;
                               ++rstaff;
                               }
@@ -989,7 +1095,7 @@ void MuseScore::editInstrList()
                               // (true if changing into or away from TAB)
                               StaffGroup ng = stfType->group();         // new staff group
                               StaffGroup og = staff->staffGroup();      // old staff group
-                              bool updateNeeded = (ng == TAB_STAFF) != (og == TAB_STAFF);
+                              bool updateNeeded = (ng == TAB_STAFF_GROUP) != (og == TAB_STAFF_GROUP);
 
                               // look for a staff type with same structure among staff types already defined in the score
                               StaffType* st;
@@ -1039,7 +1145,7 @@ void MuseScore::editInstrList()
             }
 
       QList<int> dl;
-      foreach(Staff* staff, dst) {
+      for(Staff* staff : dst) {
             int idx = rootScore->staves().indexOf(staff);
             if (idx == -1)
                   qDebug("staff in dialog(%p) not found in score\n", staff);
@@ -1081,9 +1187,18 @@ void MuseScore::editInstrList()
       if (rootScore->measures()->size() == 0)
             rootScore->insertMeasure(Element::MEASURE, 0, false);
 
+      QList<Score*> toDelete;
+      for (Excerpt* excpt : rootScore->excerpts()) {
+            if (excpt->score()->staves().size() == 0)
+                  toDelete.append(excpt->score());
+            }
+      for(Score* s: toDelete)
+            rootScore->undo(new RemoveExcerpt(s));
+
       rootScore->setLayoutAll(true);
       rootScore->endCmd();
       rootScore->rebuildMidiMapping();
+      rootScore->updateNotes(); // need to compute frets for tabs
       seq->initInstruments();
       }
 
@@ -1190,6 +1305,9 @@ void filterInstruments(QTreeWidget* instrumentList, const QString &searchPhrase)
 void InstrumentsDialog::on_search_textChanged(const QString &searchPhrase)
       {
       filterInstruments(instrumentList, searchPhrase);
+      instrumentGenreFilter->blockSignals(true);
+      instrumentGenreFilter->setCurrentIndex(0);
+      instrumentGenreFilter->blockSignals(false);
       }
 
 //---------------------------------------------------------
@@ -1201,5 +1319,58 @@ void InstrumentsDialog::on_clearSearch_clicked()
       search->clear();
       filterInstruments (instrumentList);
       }
-}
+//---------------------------------------------------------
+//   on_instrumentGenreFilter_currentTextChanged
+//---------------------------------------------------------
 
+void InstrumentsDialog::on_instrumentGenreFilter_currentIndexChanged(int index)
+      {
+      QString id = instrumentGenreFilter->itemData(index).toString();
+      // Redisplay tree, only showing items from the selected genre
+      filterInstrumentsByGenre(instrumentList, id);
+      }
+
+
+//---------------------------------------------------------
+//   filterInstrumentsByGenre
+//---------------------------------------------------------
+
+void InstrumentsDialog::filterInstrumentsByGenre(QTreeWidget *instrumentList, QString genre)
+      {
+      QTreeWidgetItemIterator iList(instrumentList);
+      while (*iList) {
+            (*iList)->setHidden(true);
+            InstrumentTemplateListItem* itli = static_cast<InstrumentTemplateListItem*>(*iList);
+            InstrumentTemplate *it=itli->instrumentTemplate();
+
+            if(it) {
+                  if (genre == "all" || it->genreMember(genre)) {
+                        (*iList)->setHidden(false);
+
+                        QTreeWidgetItem *iParent = (*iList)->parent();
+                        while(iParent) {
+                              if(!iParent->isHidden())
+                                    break;
+
+                              iParent->setHidden(false);
+                              iParent = iParent->parent();
+                              }
+                        }
+                  }
+            ++iList;
+            }
+      }
+
+//---------------------------------------------------------
+//   writeSettings
+//---------------------------------------------------------
+
+void InstrumentsDialog::writeSettings()
+      {
+      QSettings settings;
+      settings.beginGroup("Instruments");
+      settings.setValue("size", size());
+      settings.setValue("pos", pos());
+      settings.endGroup();
+      }
+}

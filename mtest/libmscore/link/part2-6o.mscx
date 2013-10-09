@@ -159,6 +159,7 @@ p, li { white-space: pre-wrap; }
           </Tempo>
         <Dynamic>
           <subtype>pp</subtype>
+          <velocity>33</velocity>
           <style>Dynamics</style>
           </Dynamic>
         <Chord>
@@ -349,7 +350,7 @@ p, li { white-space: pre-wrap; }
           <durationType>quarter</durationType>
           <Note>
             <lid>33</lid>
-            <Tie>
+            <Tie id="4">
               </Tie>
             <pitch>67</pitch>
             <tpc>15</tpc>
@@ -360,6 +361,7 @@ p, li { white-space: pre-wrap; }
           <durationType>quarter</durationType>
           <Note>
             <lid>35</lid>
+            <endSpanner id="4"/>
             <pitch>67</pitch>
             <tpc>15</tpc>
             </Note>
@@ -967,7 +969,7 @@ p, li { white-space: pre-wrap; }
       <Part>
         <Staff id="1">
           <linkedTo>1</linkedTo>
-          <type>0</type>
+          <type>-1</type>
           <bracket type="-1" span="0"/>
           </Staff>
         <trackName></trackName>
@@ -1040,6 +1042,7 @@ p, li { white-space: pre-wrap; }
             </Tempo>
           <Dynamic>
             <subtype>pp</subtype>
+            <velocity>33</velocity>
             <style>Dynamics</style>
             </Dynamic>
           <Chord>
@@ -1075,7 +1078,7 @@ p, li { white-space: pre-wrap; }
             </Rest>
           </Measure>
         <Measure number="2">
-          <HairPin id="4">
+          <HairPin id="5">
             <subtype>0</subtype>
             <veloChange>10</veloChange>
             <lid>73</lid>
@@ -1089,7 +1092,7 @@ p, li { white-space: pre-wrap; }
               <tpc>15</tpc>
               </Note>
             </Chord>
-          <endSpanner id="4"/>
+          <endSpanner id="5"/>
           <Chord>
             <lid>10</lid>
             <durationType>quarter</durationType>
@@ -1173,7 +1176,7 @@ p, li { white-space: pre-wrap; }
             </Chord>
           </Measure>
         <Measure number="4">
-          <Slur id="5">
+          <Slur id="6">
             <lid>74</lid>
             </Slur>
           <Chord>
@@ -1203,7 +1206,7 @@ p, li { white-space: pre-wrap; }
               <tpc>15</tpc>
               </Note>
             </Chord>
-          <endSpanner id="5"/>
+          <endSpanner id="6"/>
           <Chord>
             <lid>30</lid>
             <durationType>quarter</durationType>
@@ -1220,7 +1223,7 @@ p, li { white-space: pre-wrap; }
             <durationType>quarter</durationType>
             <Note>
               <lid>33</lid>
-              <Tie>
+              <Tie id="7">
                 </Tie>
               <pitch>67</pitch>
               <tpc>15</tpc>
@@ -1231,6 +1234,7 @@ p, li { white-space: pre-wrap; }
             <durationType>quarter</durationType>
             <Note>
               <lid>35</lid>
+              <endSpanner id="7"/>
               <pitch>67</pitch>
               <tpc>15</tpc>
               </Note>
@@ -1511,7 +1515,7 @@ p, li { white-space: pre-wrap; }
       <Part>
         <Staff id="1">
           <linkedTo>2</linkedTo>
-          <type>0</type>
+          <type>-1</type>
           <bracket type="-1" span="0"/>
           </Staff>
         <trackName></trackName>

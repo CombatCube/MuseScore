@@ -111,15 +111,23 @@ class Segment : public Element {
       void setPrev(Segment* e)          { _prev = e;      }
 
       Q_INVOKABLE Ms::Segment* next1() const;
+      Ms::Segment* next1MM() const;
       Segment* next1(SegmentTypes) const;
+      Segment* next1MM(SegmentTypes) const;
       Q_INVOKABLE Ms::Segment* prev1() const;
+      Ms::Segment* prev1MM() const;
       Segment* prev1(SegmentTypes) const;
+      Segment* prev1MM(SegmentTypes) const;
 
       Segment* nextCR(int track = -1) const;
 
       ChordRest* nextChordRest(int track, bool backwards = false) const;
 
-      Q_INVOKABLE Ms::Element* element(int track) const    { return _elist.value(track);  }
+      Q_INVOKABLE Ms::Element* element(int track) const { return _elist.value(track);  }
+      ChordRest* cr(int track) const                    {
+            Q_ASSERT(_segmentType == SegChordRest);
+            return (ChordRest*)(_elist.value(track));
+            };
       const QList<Element*>& elist() const { return _elist; }
 
       void removeElement(int track);

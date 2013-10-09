@@ -2,7 +2,7 @@
 //  MuseScore
 //  Music Composition & Notation
 //
-//  Copyright (C) 2011 Werner Schweer and others
+//  Copyright (C) 2011-2013 Werner Schweer and others
 //
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License version 2
@@ -122,7 +122,7 @@ enum ArticulationType {
 //---------------------------------------------------------
 
 enum BracketType {
-      BRACKET_NORMAL, BRACKET_BRACE, BRACKET_SQUARE, NO_BRACKET = -1
+      BRACKET_NORMAL, BRACKET_BRACE, BRACKET_SQUARE, BRACKET_LINE, NO_BRACKET = -1
       };
 
 //---------------------------------------------------------
@@ -242,39 +242,9 @@ enum UpDownMode {
 //---------------------------------------------------------
 
 enum StaffGroup {
-      PITCHED_STAFF, PERCUSSION_STAFF, TAB_STAFF
+      STANDARD_STAFF_GROUP, PERCUSSION_STAFF_GROUP, TAB_STAFF_GROUP
       };
-const int STAFF_GROUP_MAX = TAB_STAFF + 1;      // out of enum to avoid compiler complains about not handled switch cases
-
-//---------------------------------------------------------
-//   ClefType
-//---------------------------------------------------------
-
-enum ClefType {
-      CLEF_INVALID = -1,
-      CLEF_G = 0,
-      CLEF_G1,
-      CLEF_G2,
-      CLEF_G3,
-      CLEF_F,
-      CLEF_F8,
-      CLEF_F15,
-      CLEF_F_B,
-      CLEF_F_C,
-      CLEF_C1,
-      CLEF_C2,
-      CLEF_C3,
-      CLEF_C4,
-      CLEF_TAB,
-      CLEF_PERC,
-      CLEF_C5,
-      CLEF_G4,
-      CLEF_F_8VA,
-      CLEF_F_15MA,
-      CLEF_PERC2,
-      CLEF_TAB2,
-      CLEF_MAX
-      };
+const int STAFF_GROUP_MAX = TAB_STAFF_GROUP + 1;      // out of enum to avoid compiler complains about not handled switch cases
 
 //---------------------------------------------------------
 //   Text Style Type
@@ -379,6 +349,8 @@ class MScore : public QObject {
       static qreal vRaster()              { return _vRaster;     }
       static void setHRaster(int val)     { _hRaster = val;      }
       static void setVRaster(int val)     { _vRaster = val;      }
+      static void setNudgeStep10(qreal val)     { nudgeStep10 = val;      }
+      static void setNudgeStep50(qreal val)     { nudgeStep50 = val;      }
 
       static QColor selectColor[4];
       static QColor defaultColor;
@@ -392,6 +364,8 @@ class MScore : public QObject {
       static bool playRepeats;
       static bool panPlayback;
       static qreal nudgeStep;
+      static qreal nudgeStep10;
+      static qreal nudgeStep50;
       static int defaultPlayDuration;
       static QString partStyle;
       static QString lastError;

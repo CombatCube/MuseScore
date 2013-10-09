@@ -63,10 +63,10 @@ EditStaffType::EditStaffType(QWidget* parent, Staff* st)
       for (int i=0; i < numOfPreset; ++i) {
             const StaffType* st = StaffType::preset(i);
             switch (st->group()) {
-                  case TAB_STAFF:
+                  case TAB_STAFF_GROUP:
                         presetTablatureCombo->addItem(st->name(), i);
                         break;
-                  case PERCUSSION_STAFF:
+                  case PERCUSSION_STAFF_GROUP:
                         presetPercCombo->addItem(st->name(), i);
                         break;
                   default:
@@ -177,7 +177,7 @@ void EditStaffType::saveCurrent(QListWidgetItem* o)
 
       // or if any of the props specific to each group is modified
       switch(st->group()) {
-            case PITCHED_STAFF:
+            case STANDARD_STAFF_GROUP:
                   {
                   StaffTypePitched* sp = static_cast<StaffTypePitched*>(st);
                   if (sp->genKeysig()         != genKeysigPitched->isChecked()
@@ -189,7 +189,7 @@ void EditStaffType::saveCurrent(QListWidgetItem* o)
                   }
                   break;
 
-            case TAB_STAFF:
+            case TAB_STAFF_GROUP:
                   {
                   StaffTypeTablature*  stt = static_cast<StaffTypeTablature*>(st);
                   TablatureMinimStyle minimStyle = minimNoneRadio->isChecked() ? TAB_MINIM_NONE :
@@ -219,7 +219,7 @@ void EditStaffType::saveCurrent(QListWidgetItem* o)
                   }
                   break;
 
-            case PERCUSSION_STAFF:
+            case PERCUSSION_STAFF_GROUP:
                   {
                   StaffTypePercussion* sp = static_cast<StaffTypePercussion*>(st);
                   if (sp->genKeysig()         != genKeysigPercussion->isChecked()
@@ -235,11 +235,16 @@ void EditStaffType::saveCurrent(QListWidgetItem* o)
       if (modif) {
             // save common properties
             // save-group specific properties
+            if(name->text().isEmpty()) {
+                  QString n = createUniqueStaffTypeName(st->group());
+                  name->setText(n);
+                  o->setText(n);
+                  }
             switch(st->group()) {
-                  case PITCHED_STAFF:
+                  case STANDARD_STAFF_GROUP:
                         {
                         StaffTypePitched* stp = static_cast<StaffTypePitched*>(st);
-                        stp->setName(o->text());
+                        stp->setName(name->text());
                         stp->setLines(lines->value());
                         stp->setLineDistance(Spatium(lineDistance->value()));
                         stp->setShowBarlines(showBarlines->isChecked());
@@ -250,13 +255,13 @@ void EditStaffType::saveCurrent(QListWidgetItem* o)
                         stp->setSlashStyle(stemlessPitched->isChecked());
                         }
                         break;
-                  case TAB_STAFF:
+                  case TAB_STAFF_GROUP:
                         {
                         StaffTypeTablature*  stt = static_cast<StaffTypeTablature*>(st);
                         setTabFromDlg(stt);
                         }
                         break;
-                  case PERCUSSION_STAFF:
+                  case PERCUSSION_STAFF_GROUP:
                         {
                         StaffTypePercussion* stp = static_cast<StaffTypePercussion*>(st);
                         setPercFromDlg(stp);
@@ -284,7 +289,7 @@ void EditStaffType::typeChanged(QListWidgetItem* n, QListWidgetItem* o)
       // switch to stack page and set props specific to each staff group
 
       switch(st->group()) {
-            case PITCHED_STAFF:
+            case STANDARD_STAFF_GROUP:
                   {
                   StaffTypePitched* ps = static_cast<StaffTypePitched*>(st);
                   stack->setCurrentIndex(0);
@@ -300,7 +305,7 @@ void EditStaffType::typeChanged(QListWidgetItem* n, QListWidgetItem* o)
                   }
                   break;
 
-            case TAB_STAFF:
+            case TAB_STAFF_GROUP:
                   {
                   StaffTypeTablature* stt = static_cast<StaffTypeTablature*>(st);
                   blockTabPreviewSignals(true);
@@ -311,7 +316,7 @@ void EditStaffType::typeChanged(QListWidgetItem* n, QListWidgetItem* o)
                   }
                   break;
 
-            case PERCUSSION_STAFF:
+            case PERCUSSION_STAFF_GROUP:
                   {
                   StaffTypePercussion* ps = static_cast<StaffTypePercussion*>(st);
                   blockPercPreviewSignals(true);
@@ -336,22 +341,8 @@ void EditStaffType::createNewType()
       int idx       = staffTypeList->currentItem()->data(Qt::UserRole).toInt();
       StaffType* ns = staffTypes[idx]->clone();
 
-      //
-      // create unique new name for StaffType
-      //
-      for (int i = 1;;++i) {
-            QString name = QString("type-%1").arg(i);
-            int n = staffTypes.size();
-            int k;
-            for (k = 0; k < n; ++k) {
-                  if (staffTypes[k]->name() == name)
-                        break;
-                  }
-            if (k == n) {
-                  ns->setName(name);
-                  break;
-                  }
-            }
+      ns->setName(createUniqueStaffTypeName(ns->group()));
+
       staffTypes.append(ns);
       QListWidgetItem* item = new QListWidgetItem(ns->name());
       item->setData(Qt::UserRole, staffTypes.size() - 1);
@@ -445,7 +436,7 @@ void EditStaffType::setPercFromDlg(StaffTypePercussion * st)
 void EditStaffType::updatePercPreview()
       {
       // if current type is not a PERC type, do nothing
-      if(staffTypes[staffTypeList->currentItem()->data(Qt::UserRole).toInt()]->group() != PERCUSSION_STAFF)
+      if(staffTypes[staffTypeList->currentItem()->data(Qt::UserRole).toInt()]->group() != PERCUSSION_STAFF_GROUP)
             return;
       // create a new staff type from dlg settings
       StaffTypePercussion* st = new StaffTypePercussion();
@@ -781,12 +772,12 @@ void EditStaffType::updateTabPreview()
       {
       // if no preview or current type is not a TAB type, do nothing
       if(!tabPreview ||
-                  staffTypes[staffTypeList->currentItem()->data(Qt::UserRole).toInt()]->group() != TAB_STAFF)
+                  staffTypes[staffTypeList->currentItem()->data(Qt::UserRole).toInt()]->group() != TAB_STAFF_GROUP)
             return;
       // create a new staff type from dlg settings and set it into the preview score
       StaffTypeTablature* stt = new StaffTypeTablature();
       setTabFromDlg(stt);
-      tabPreview->score()->addStaffType(TAB_STAFF_TYPE, stt);
+      tabPreview->score()->addStaffType(TAB_6COMMON_STAFF_TYPE, stt);
 
       tabPreview->score()->doLayout();
 #ifdef _USE_NAVIGATOR_PREVIEW_
@@ -806,6 +797,36 @@ void EditStaffType::updateTabPreview()
       presetTablatureCombo->setCurrentIndex(idx);
       presetTablatureCombo->blockSignals(false);
       }
+
+
+//---------------------------------------------------------
+//   createUniqueStaffTypeName
+///  create unique new name for StaffType
+//---------------------------------------------------------
+
+QString EditStaffType::createUniqueStaffTypeName(StaffGroup group)
+      {
+      // count how many types there are already of the same group of the new type
+      int idx       = staffTypeList->currentItem()->data(Qt::UserRole).toInt();
+      for (int i = idx = 0; i < staffTypes.count(); i++)
+            if (staffTypes[i]->group() == group)
+                  idx++;
+      QString name;
+      switch (group)
+            {
+            case STANDARD_STAFF_GROUP:
+                  name = QString("Standard-%1 [*]").arg(idx);
+                  break;
+            case PERCUSSION_STAFF_GROUP:
+                  name = QString("Perc-%1 [*]").arg(idx);
+                  break;
+            case TAB_STAFF_GROUP:
+                  name = QString("Tab-%1 [*]").arg(idx);
+                  break;
+            }
+      return name;
+      }
+
 
 //---------------------------------------------------------
 //   accept

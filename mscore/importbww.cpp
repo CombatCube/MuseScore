@@ -37,6 +37,7 @@
 #include "libmscore/pitchspelling.h"
 #include "libmscore/score.h"
 #include "libmscore/slur.h"
+#include "libmscore/tie.h"
 #include "libmscore/staff.h"
 #include "libmscore/tempotext.h"
 #include "libmscore/timesig.h"
@@ -267,7 +268,7 @@ void MsScWriter::beginMeasure(const Bww::MeasureBeginFlags mbf)
       if (measureNumber == 1) {
             // clef
             Ms::Clef* clef = new Ms::Clef(score);
-            clef->setClefType(Ms::CLEF_G);
+            clef->setClefType(Ms::ClefType::G);
             clef->setTrack(0);
             Ms::Segment* s = currentMeasure->getSegment(clef, tick);
             s->add(clef);
@@ -317,7 +318,7 @@ void MsScWriter::endMeasure(const Bww::MeasureEndFlags mef)
       if (mef.lastOfSystem) {
             Ms::LayoutBreak* lb = new Ms::LayoutBreak(score);
             lb->setTrack(0);
-            lb->setLayoutBreakType(Ms::LAYOUT_BREAK_LINE);
+            lb->setLayoutBreakType(Ms::LayoutBreak::LINE);
             currentMeasure->add(lb);
             }
 
@@ -438,9 +439,7 @@ void MsScWriter::header(const QString title, const QString type,
       // TODO re-enable following statement
       // currently disabled because it breaks the bww iotest
       // if (!type.isEmpty()) score->setMetaTag("workNumber", type);
-      QString strType = "composer";
-      QString strComposer = composer; // TODO: const parameters ctor MusicXmlCreator
-      score->addCreator(new Ms::MusicXmlCreator(strType, strComposer));
+      if (!composer.isEmpty()) score->setMetaTag("composer", composer);
       if (!footer.isEmpty()) score->setMetaTag("copyright", footer);
 
       //  score->setWorkTitle(title);
@@ -544,6 +543,8 @@ Score::FileError importBww(Score* score, const QString& path)
       qDebug("Score::importBww(%s)\n", qPrintable(path));
 
       QFile fp(path);
+      if(!fp.exists())
+            return Score::FILE_NOT_FOUND;
       if (!fp.open(QIODevice::ReadOnly))
             return Score::FILE_OPEN_ERROR;
 

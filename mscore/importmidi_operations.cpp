@@ -28,6 +28,11 @@ void MidiImportOperations::setCurrentTrack(int trackIndex)
       currentTrack_ = trackIndex;
       }
 
+void MidiImportOperations::setCurrentMidiFile(const QString &fileName)
+      {
+      currentMidiFile_ = fileName;
+      }
+
 TrackOperations MidiImportOperations::currentTrackOperations() const
       {
       if (!isValidIndex(currentTrack_))
@@ -40,6 +45,29 @@ TrackOperations MidiImportOperations::trackOperations(int trackIndex) const
       if (!isValidIndex(trackIndex))
             return TrackOperations();
       return operations_[trackIndex];
+      }
+
+QString MidiImportOperations::charset() const
+      {
+      return midiData_.charset(currentMidiFile_);
+      }
+
+void MidiImportOperations::adaptForPercussion(int trackIndex)
+      {
+                  // small hack: don't use multiple voices for tuplets
+      if (isValidIndex(trackIndex))
+            operations_[trackIndex].useMultipleVoices = false;
+      }
+
+void MidiImportOperations::addTrackLyrics(const std::multimap<ReducedFraction, std::string> &trackLyrics)
+      {
+      midiData_.addTrackLyrics(currentMidiFile_, trackLyrics);
+      }
+
+const QList<std::multimap<ReducedFraction, std::string>>*
+MidiImportOperations::getLyrics()
+      {
+      return midiData_.getLyrics(currentMidiFile_);
       }
 
 } // namespace Ms

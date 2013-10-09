@@ -115,20 +115,15 @@ bool ScoreView::editKeyLyrics(QKeyEvent* ev)
             case Qt::Key_Return:
                   lyricsReturn();
                   break;
-	      case Qt::Key_Minus:
-                  if (!(modifiers & CONTROL_MODIFIER))
+            default:
+                  {
+                  if(s == "-" && !(modifiers & CONTROL_MODIFIER))
                         lyricsMinus();
-                  else
-                        return false;
-                  break;
-	      case Qt::Key_Underscore:
-                  if (!(modifiers & CONTROL_MODIFIER))
+                  else if (s == "_" && !(modifiers & CONTROL_MODIFIER))
                         lyricsUnderscore();
                   else
                         return false;
-                  break;
-            default:
-                  return false;
+                  }
             }
       return true;
       }
@@ -237,9 +232,9 @@ void ScoreView::editKey(QKeyEvent* ev)
       else {
             xval = MScore::nudgeStep * _spatium;
             if (modifiers & Qt::ControlModifier)
-                  xval = preferences.nudgeStep10 * _spatium;
+                  xval = MScore::nudgeStep10 * _spatium;
             else if (modifiers & Qt::AltModifier)
-                  xval = preferences.nudgeStep50 * _spatium;
+                  xval = MScore::nudgeStep50 * _spatium;
             }
       yval = xval;
 
@@ -297,13 +292,13 @@ void MuseScore::updateInputState(Score* score)
       if (is.noteEntryMode) {
             Staff* staff = score->staff(is.track() / VOICES);
             switch (staff->staffType()->group()) {
-                  case PITCHED_STAFF:
+                  case STANDARD_STAFF_GROUP:
                         changeState(STATE_NOTE_ENTRY_PITCHED);
                         break;
-                  case TAB_STAFF:
+                  case TAB_STAFF_GROUP:
                         changeState(STATE_NOTE_ENTRY_TAB);
                         break;
-                  case PERCUSSION_STAFF:
+                  case PERCUSSION_STAFF_GROUP:
                         changeState(STATE_NOTE_ENTRY_DRUM);
                         break;
                   }

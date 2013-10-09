@@ -37,12 +37,16 @@ void TrillSegment::draw(QPainter* painter) const
       qreal x2   = pos2().x();
 
       QColor color;
-      if (selected() && !(score() && score()->printing()))
+      if (flag(ELEMENT_DROP_TARGET))
+            color = MScore::dropColor;
+      else if (selected() && !(score() && score()->printing()))
             color = MScore::selectColor[0];
       else if (!visible())
             color = Qt::gray;
-      else
+      else {
             color = trill()->curColor();
+            }
+
       painter->setPen(color);
       if (spannerSegmentType() == SEGMENT_SINGLE || spannerSegmentType() == SEGMENT_BEGIN) {
             int sym = 0;
@@ -105,6 +109,31 @@ void TrillSegment::draw(QPainter* painter) const
       }
 
 //---------------------------------------------------------
+//   add
+//---------------------------------------------------------
+
+void TrillSegment::add(Element* e)
+      {
+      e->setParent(this);
+      if (e->type() == ACCIDENTAL) {
+            // accidental is part of trill
+            trill()->setAccidental(static_cast<Accidental*>(e));
+            }
+      }
+
+//---------------------------------------------------------
+//   remove
+//---------------------------------------------------------
+
+void TrillSegment::remove(Element* e)
+      {
+      if (trill()->accidental() == e) {
+            // accidental is part of trill
+            trill()->setAccidental(0);
+            }
+      }
+
+//---------------------------------------------------------
 //   layout
 //---------------------------------------------------------
 
@@ -116,6 +145,16 @@ void TrillSegment::layout()
       setbbox(rr);
       if (parent())
             rypos() += score()->styleS(ST_trillY).val() * spatium();
+      if (spannerSegmentType() == SEGMENT_SINGLE || spannerSegmentType() == SEGMENT_BEGIN) {
+            Accidental* a = trill()->accidental();
+            if (a) {
+                  a->layout();
+                  a->setMag(a->mag() * .6);
+                  qreal _spatium = spatium();
+                  a->setPos(_spatium*1.3, -2.2*_spatium);
+                  a->adjustReadPos();
+                  }
+            }
       adjustReadPos();
       }
 
@@ -194,6 +233,20 @@ QVariant TrillSegment::propertyDefault(P_ID id) const
       }
 
 //---------------------------------------------------------
+//   scanElements
+//---------------------------------------------------------
+
+void TrillSegment::scanElements(void* data, void (*func)(void*, Element*), bool all)
+      {
+      func(data, this);
+      if (spannerSegmentType() == SEGMENT_SINGLE || spannerSegmentType() == SEGMENT_BEGIN) {
+            Accidental* a = trill()->accidental();
+            if (a)
+                  func(data, a);
+            }
+      }
+
+//---------------------------------------------------------
 //   Trill
 //---------------------------------------------------------
 
@@ -201,6 +254,12 @@ Trill::Trill(Score* s)
   : SLine(s)
       {
       _trillType = TRILL_LINE;
+      _accidental = 0;
+      }
+
+Trill::~Trill()
+      {
+      delete _accidental;
       }
 
 //---------------------------------------------------------
@@ -211,7 +270,7 @@ void Trill::add(Element* e)
       {
       if (e->type() == ACCIDENTAL) {
             e->setParent(this);
-            _el.push_back(e);
+            _accidental = static_cast<Accidental*>(e);
             }
       else
             SLine::add(e);
@@ -223,8 +282,8 @@ void Trill::add(Element* e)
 
 void Trill::remove(Element* e)
       {
-      if (!_el.remove(e))
-            Spanner::remove(e);
+      if (e == _accidental)
+            _accidental = 0;
       }
 
 //---------------------------------------------------------
@@ -234,11 +293,11 @@ void Trill::remove(Element* e)
 void Trill::layout()
       {
       qreal _spatium = spatium();
-//      setPos(0.0, yoff() * _spatium);
 
       SLine::layout();
       if (score() == gscore)
             return;
+      TrillSegment* ls = static_cast<TrillSegment*>(frontSegment());
       //
       // special case:
       // if end segment is first chord/rest segment in measure,
@@ -257,17 +316,12 @@ void Trill::layout()
                   Segment* s2      = m->last();
                   qreal x2         = s2->pagePos().x();
                   qreal dx         = x1 - x2 + _spatium * .3;
-                  TrillSegment* ls = static_cast<TrillSegment*>(frontSegment());
                   ls->setPos2(ls->ipos2() + QPointF(-dx, 0.0));
                   ls->layout();
                   }
             }
-      foreach(Element* e, _el) {
-            e->setMag(.6);
-            e->layout();
-            e->setPos(_spatium*1.3, -2.2*_spatium);
-            e->adjustReadPos();
-            }
+      if (_accidental)
+            _accidental->setParent(ls);
       }
 
 //---------------------------------------------------------
@@ -291,8 +345,8 @@ void Trill::write(Xml& xml) const
       xml.stag(QString("%1 id=\"%2\"").arg(name()).arg(id()));
       xml.tag("subtype", trillTypeName());
       SLine::writeProperties(xml);
-      foreach(Element* e, _el)
-            e->write(xml);
+      if (_accidental)
+            _accidental->write(xml);
       xml.etag();
       }
 
@@ -311,9 +365,9 @@ void Trill::read(XmlReader& e)
             if (tag == "subtype")
                   setTrillType(e.readElementText());
             else if (tag == "Accidental") {
-                  Accidental* a = new Accidental(score());
-                  a->read(e);
-                  add(a);
+                  _accidental = new Accidental(score());
+                  _accidental->read(e);
+                  _accidental->setParent(this);
                   }
             else if (!SLine::readProperties(e))
                   e.unknown();
@@ -369,9 +423,9 @@ QString Trill::trillTypeName() const
 
 void Trill::scanElements(void* data, void (*func)(void*, Element*), bool all)
       {
-      foreach(Element* e, _el)
-            e->scanElements(data, func, all);
-      func(data, this);
+      if (_accidental)
+            _accidental->scanElements(data, func, all);
+      func(data, this);       // ?
       SLine::scanElements(data, func, all);
       }
 
@@ -441,7 +495,5 @@ void Trill::setYoff(qreal val)
       {
       rUserYoffset() += (val - score()->styleS(ST_trillY).val()) * spatium();
       }
-
-
 }
 

@@ -41,6 +41,7 @@
 #include "zerberus/zerberus.h"
 #include "fluid/fluid.h"
 #include "pathlistdialog.h"
+#include "mstyle/mconfig.h"
 
 namespace Ms {
 
@@ -171,7 +172,8 @@ void Preferences::init()
       checkUpdateStartup      = 0;
 
       followSong              = true;
-      importCharset           = "GBK";
+      importCharsetOve        = "GBK";
+      importCharsetGP         = "UTF-8";
       importStyleFile         = "";
       shortestNote            = MScore::division/4;
 
@@ -179,8 +181,9 @@ void Preferences::init()
       oscPort                 = 5282;
       singlePalette           = false;
 
-      styleName               = "dark";   // ??
-      globalStyle             = STYLE_DARK;
+      styleName               = "light";   // ??
+      globalStyle             = STYLE_LIGHT;
+      animations              = true;
 
       QString wd      = QString("%1/%2").arg(QDesktopServices::storageLocation(QDesktopServices::DocumentsLocation)).arg(QCoreApplication::applicationName());
 
@@ -192,8 +195,8 @@ void Preferences::init()
       sfPath          = QDir(QString("%1%2;%3/%4").arg(mscoreGlobalShare).arg("sound").arg(wd).arg(QCoreApplication::translate("soundfonts_directory", "Soundfonts"))).absolutePath();
       sfzPath         = QDir(QString("%1/%2").arg(wd).arg(QCoreApplication::translate("sfz_files_directory",  "SfzFiles"))).absolutePath();
 
-      nudgeStep10             = 1.0;      // Ctrl + cursor key (default 1.0)
-      nudgeStep50             = 5.0;      // Alt  + cursor key (default 5.0)
+      MScore::setNudgeStep10(1.0);      // Ctrl + cursor key (default 1.0)
+      MScore::setNudgeStep50(0.01);      // Alt  + cursor key (default 0.01)
 
       MScore::setHRaster(2);        // _spatium / value
       MScore::setVRaster(2);
@@ -311,13 +314,15 @@ void Preferences::write()
       s.setValue("defaultPlayDuration", MScore::defaultPlayDuration);
       s.setValue("importStyleFile", importStyleFile);
       s.setValue("shortestNote", shortestNote);
-      s.setValue("importCharset", importCharset);
+      s.setValue("importCharsetOve", importCharsetOve);
+      s.setValue("importCharsetGP", importCharsetGP);
       s.setValue("warnPitchRange", MScore::warnPitchRange);
       s.setValue("followSong", followSong);
 
       s.setValue("useOsc", useOsc);
       s.setValue("oscPort", oscPort);
       s.setValue("style", styleName);
+      s.setValue("animations", animations);
       s.setValue("singlePalette", singlePalette);
 
       s.setValue("myScoresPath", myScoresPath);
@@ -450,7 +455,8 @@ void Preferences::read()
       MScore::defaultPlayDuration = s.value("defaultPlayDuration", MScore::defaultPlayDuration).toInt();
       importStyleFile        = s.value("importStyleFile", importStyleFile).toString();
       shortestNote           = s.value("shortestNote", shortestNote).toInt();
-      importCharset          = s.value("importCharset", importCharset).toString();
+      importCharsetOve          = s.value("importCharsetOve", importCharsetOve).toString();
+      importCharsetGP          = s.value("importCharsetGP", importCharsetGP).toString();
       MScore::warnPitchRange = s.value("warnPitchRange", MScore::warnPitchRange).toBool();
       followSong             = s.value("followSong", followSong).toBool();
 
@@ -462,8 +468,8 @@ void Preferences::read()
       else
             globalStyle  = STYLE_LIGHT;
 
+      animations       = s.value("animations",       animations).toBool();
       singlePalette    = s.value("singlePalette",    singlePalette).toBool();
-
       myScoresPath     = s.value("myScoresPath",     myScoresPath).toString();
       myStylesPath     = s.value("myStylesPath",     myStylesPath).toString();
       myImagesPath     = s.value("myImagesPath",     myImagesPath).toString();
@@ -655,6 +661,9 @@ PreferenceDialog::PreferenceDialog(QWidget* parent)
       for (int idx = 0; idx < n; ++idx)
             exportAudioSampleRate->addItem(QString("%1").arg(exportAudioSampleRates[idx]));
 
+      restartWarningLanguage->setText("");
+      connect(language, SIGNAL(currentIndexChanged(int)), SLOT(languageChanged(int)));
+
       connect(recordButtons,          SIGNAL(buttonClicked(int)), SLOT(recordButtonClicked(int)));
       connect(midiRemoteControlClear, SIGNAL(clicked()), SLOT(midiRemoteControlClearClicked()));
       connect(portaudioDriver, SIGNAL(toggled(bool)), SLOT(exclusiveAudioDriver(bool)));
@@ -681,6 +690,16 @@ void PreferenceDialog::setPreferences(const Preferences& p)
 PreferenceDialog::~PreferenceDialog()
       {
       qDeleteAll(localShortcuts);
+      }
+
+
+//---------------------------------------------------------
+//   recordButtonClicked
+//---------------------------------------------------------
+
+void PreferenceDialog::languageChanged(int /*val*/)
+      {
+      restartWarningLanguage->setText(tr("The language will be changed once you restart MuseScore."));
       }
 
 //---------------------------------------------------------
@@ -852,12 +871,14 @@ void PreferenceDialog::updateValues()
       autoSaveTime->setValue(prefs.autoSaveTime);
       pngResolution->setValue(prefs.pngResolution);
       pngTransparent->setChecked(prefs.pngTransparent);
+      language->blockSignals(true);
       for (int i = 0; i < language->count(); ++i) {
             if (language->itemText(i).startsWith(prefs.language)) {
                   language->setCurrentIndex(i);
                   break;
                   }
             }
+      language->blockSignals(false);
       //
       // initialize local shortcut table
       //    we need a deep copy to be able to rewind all
@@ -877,10 +898,12 @@ void PreferenceDialog::updateValues()
             Portaudio* audio = static_cast<Portaudio*>(seq->driver());
             if (audio) {
                   QStringList apis = audio->apiList();
+                  portaudioApi->clear();
                   portaudioApi->addItems(apis);
                   portaudioApi->setCurrentIndex(audio->currentApi());
 
                   QStringList devices = audio->deviceList(audio->currentApi());
+                  portaudioDevice->clear();
                   portaudioDevice->addItems(devices);
                   portaudioDevice->setCurrentIndex(audio->currentDevice());
 
@@ -890,6 +913,7 @@ void PreferenceDialog::updateValues()
                   if(midiDriver){
                         QStringList midiInputs = midiDriver->deviceInList();
                         int curMidiInIdx = 0;
+                        portMidiInput->clear();
                         for(int i = 0; i < midiInputs.size(); ++i) {
                               portMidiInput->addItem(midiInputs.at(i), i);
                               if (midiInputs.at(i) == prefs.portMidiInput)
@@ -926,19 +950,24 @@ void PreferenceDialog::updateValues()
       useImportBuildinStyle->setChecked(prefs.importStyleFile.isEmpty());
       useImportStyleFile->setChecked(!prefs.importStyleFile.isEmpty());
 
-      importCharsetList->clear();
       QList<QByteArray> charsets = QTextCodec::availableCodecs();
       qSort(charsets.begin(), charsets.end());
       int idx = 0;
+      importCharsetListOve->clear();
+      importCharsetListGP->clear();
       foreach (QByteArray charset, charsets) {
-            importCharsetList->addItem(charset);
-            if (charset == prefs.importCharset)
-                  importCharsetList->setCurrentIndex(idx);
+            importCharsetListOve->addItem(charset);
+            importCharsetListGP->addItem(charset);
+            if (charset == prefs.importCharsetOve)
+                  importCharsetListOve->setCurrentIndex(idx);
+            if (charset == prefs.importCharsetGP)
+                  importCharsetListGP->setCurrentIndex(idx);
             idx++;
             }
 
       warnPitchRange->setChecked(MScore::warnPitchRange);
 
+      language->blockSignals(true);
       language->clear();
       int curIdx = 0;
       for(int i = 0; i < mscore->languages().size(); ++i) {
@@ -947,11 +976,13 @@ void PreferenceDialog::updateValues()
                   curIdx = i;
             }
       language->setCurrentIndex(curIdx);
+      language->blockSignals(false);
 
       oscServer->setChecked(prefs.useOsc);
       oscPort->setValue(prefs.oscPort);
 
       styleName->setCurrentIndex(prefs.globalStyle);
+      animations->setChecked(prefs.animations);
 
       defaultStyle->setText(prefs.defaultStyleFile);
 
@@ -1221,7 +1252,7 @@ void PreferenceDialog::apply()
       prefs.fgWallpaper    = fgWallpaper->text();
       prefs.bgWallpaper    = bgWallpaper->text();
       prefs.fgColor        = fgColorLabel->color();
-      MScore::bgColor            = bgColorLabel->color();
+      MScore::bgColor      = bgColorLabel->color();
 
       prefs.iconWidth      = iconWidth->value();
       prefs.iconHeight     = iconHeight->value();
@@ -1373,7 +1404,8 @@ void PreferenceDialog::apply()
             }
       prefs.shortestNote = ticks;
 
-      prefs.importCharset = importCharsetList->currentText();
+      prefs.importCharsetOve = importCharsetListOve->currentText();
+      prefs.importCharsetGP = importCharsetListGP->currentText();
       MScore::warnPitchRange = warnPitchRange->isChecked();
 
       prefs.useOsc  = oscServer->isChecked();
@@ -1386,6 +1418,9 @@ void PreferenceDialog::apply()
             prefs.styleName = "light";
             prefs.globalStyle = STYLE_LIGHT;
             }
+
+      prefs.animations = animations->isChecked();
+      MgStyleConfigData::animationsEnabled = prefs.animations;
 
       if (languageChanged) {
             setMscoreLocale(prefs.language);
@@ -1808,4 +1843,3 @@ void PreferenceDialog::printShortcutsClicked()
       p.end();
       }
 }
-

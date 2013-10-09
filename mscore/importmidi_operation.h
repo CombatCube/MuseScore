@@ -32,7 +32,16 @@ struct MidiOperation
             TUPLET_7,
             TUPLET_9,
 
-            CHANGE_CLEF
+            CHANGE_CLEF,
+
+            SPLIT_DRUMS,
+            SHOW_STAFF_BRACKET,
+
+            PICKUP_MEASURE,
+
+            SWING,
+
+            LYRIC_TRACK_INDEX
       } type;
 
       QVariant value;
@@ -45,6 +54,12 @@ struct MidiOperation
             N_32,
             N_64,
             N_128
+            };
+
+      enum class Swing {
+            NONE = 0,
+            SWING,
+            SHUFFLE
             };
 
       enum class LHRHMethod {

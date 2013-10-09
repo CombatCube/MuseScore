@@ -53,6 +53,18 @@
 namespace Ms {
 
 //---------------------------------------------------------
+//   writeMeasure
+//---------------------------------------------------------
+
+static void writeMeasure(Xml& xml, MeasureBase* m, int staffIdx, bool writeSystemElements)
+      {
+      if (m->type() == Element::MEASURE || staffIdx == 0)
+           m->write(xml, staffIdx, writeSystemElements);
+      if (m->type() == Element::MEASURE)
+            xml.curTick = m->tick() + m->ticks();
+      }
+
+//---------------------------------------------------------
 //   write
 //---------------------------------------------------------
 
@@ -97,7 +109,7 @@ void Score::write(Xml& xml, bool selectionOnly)
       if (!parentScore()) {
             int idx = 0;
             foreach(StaffType** st, _staffTypes) {
-                  if ((idx >= STAFF_TYPES) || !(*st)->isEqual(*Ms::staffTypes[idx]))
+                  if ((idx >= STAFF_TYPES) || !(*st)->isEqual(*StaffType::preset(idx)))
                         (*st)->write(xml, idx);
                   ++idx;
                   }
@@ -159,12 +171,9 @@ void Score::write(Xml& xml, bool selectionOnly)
                   xml.curTick  = measureStart->tick();
                   xml.tickDiff = xml.curTick;
                   xml.curTrack = staffIdx * VOICES;
-                  for (MeasureBase* m = measureStart; m != measureEnd; m = m->next()) {
-                        if (m->type() == Element::MEASURE || staffIdx == 0)
-                              m->write(xml, staffIdx, staffIdx == staffStart);
-                        if (m->type() == Element::MEASURE)
-                              xml.curTick = m->tick() + m->ticks();
-                        }
+                  bool writeSystemElements = staffIdx == staffStart;
+                  for (MeasureBase* m = measureStart; m != measureEnd; m = m->next())
+                        writeMeasure(xml, m, staffIdx, writeSystemElements);
                   xml.etag();
                   }
             }
@@ -485,6 +494,10 @@ bool Score::loadStyle(const QString& fn)
                   undo(new ChangeStyle(this, st));
                   return true;
                   }
+             else {
+                  MScore::lastError = tr("The style file is not compatible with this version of MuseScore.");
+                  return false;
+                  }
             }
       MScore::lastError = strerror(errno);
       return false;
@@ -791,19 +804,33 @@ bool Score::read(XmlReader& e)
                   customKeysigs.append(ks);
                   }
             else if (tag == "StaffType") {
-                  int idx        = e.intAttribute("idx");
+                  int idx           = e.intAttribute("idx");
+                  QString groupName = e.attribute("group", "pitched");
+                  int group;
+                  // staff type numbering did change!
+                  // attempt to keep some compatibility with existing 2.0 scores
+                  if (groupName == "percussion")
+                        group = PERCUSSION_STAFF_GROUP;
+                  else if (groupName == "tablature")
+                        group = TAB_STAFF_GROUP;
+                  else group = STANDARD_STAFF_GROUP;
                   StaffType* ost = staffType(idx);
                   StaffType* st;
-                  if (ost)
+                  if (ost && ost->group() == group)
                         st = ost->clone();
                   else {
-                        QString group  = e.attribute("group", "pitched");
-                        if (group == "percussion")
+                        idx = -1;
+                        switch (group)
+                        {
+                        case PERCUSSION_STAFF_GROUP:
                               st  = new StaffTypePercussion();
-                        else if (group == "tablature")
+                              break;
+                        case TAB_STAFF_GROUP:
                               st  = new StaffTypeTablature();
-                        else
+                              break;
+                        default:
                               st  = new StaffTypePitched();
+                        }
                         }
                   st->read(e);
                   st->setBuiltin(false);
@@ -1006,7 +1033,6 @@ bool Score::read(XmlReader& e)
             _showOmr = false;
 
       fixTicks();
-      renumberMeasures();
       rebuildMidiMapping();
       updateChannel();
       updateNotes();          // only for parts needed?
@@ -1241,6 +1267,7 @@ void Score::writeSegments(Xml& xml, const Measure* m, int strack, int etrack,
                         cr->writeBeam(xml);
                         cr->writeTuplet(xml);
                         }
+#if 0 // TODO MM
                   if ((segment->segmentType() == Segment::SegEndBarLine) && m && (m->multiMeasure() > 0)) {
                         xml.stag("BarLine");
                         xml.tag("subtype", m->endBarLineType());
@@ -1248,7 +1275,8 @@ void Score::writeSegments(Xml& xml, const Measure* m, int strack, int etrack,
                         xml.etag();
                         }
                   else
-                        e->write(xml);
+#endif
+                  e->write(xml);
                   segment->write(xml);    // write only once
                   }
             }

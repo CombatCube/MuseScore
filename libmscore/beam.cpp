@@ -63,6 +63,8 @@ Beam::Beam(Score* s)
       editFragment     = 0;
       isGrace          = false;
       cross            = false;
+      _noSlope         = score()->styleB(ST_beamNoSlope);
+      noSlopeStyle     = PropertyStyle::STYLED;
       }
 
 //---------------------------------------------------------
@@ -91,6 +93,8 @@ Beam::Beam(const Beam& b)
       cross            = b.cross;
       maxDuration      = b.maxDuration;
       slope            = b.slope;
+      _noSlope         = b._noSlope;
+      noSlopeStyle     = b.noSlopeStyle;
       }
 
 //---------------------------------------------------------
@@ -273,6 +277,22 @@ void Beam::layout1()
                               c1 = c2;
                         }
                   }
+            }
+      else if (staff()->isDrumStaff()) {
+            if (_direction != MScore::AUTO) {
+                  _up = _direction == MScore::UP;
+                  }
+            else {
+                  foreach (ChordRest* cr, _elements) {
+                        if (cr->type() == CHORD) {
+                              c2 = static_cast<Chord*>(cr);
+                              _up = c2->up();
+                              break;
+                              }
+                        }
+                  }
+            foreach(ChordRest* cr, _elements)
+                  cr->setUp(_up);
             }
       else {
             //PITCHED STAVES (and TAB's with stems through staves)
@@ -483,12 +503,22 @@ inline qreal absLimit(qreal val, qreal limit)
       }
 
 //---------------------------------------------------------
-//   noSlope
+//   hasNoSlope
 //---------------------------------------------------------
 
-bool Beam::noSlope(const QList<ChordRest*>& cl)
+bool Beam::hasNoSlope()
       {
-      if (cl.size() < 2)
+      int idx = (_direction == MScore::AUTO || _direction == MScore::DOWN) ? 0 : 1;
+      return _noSlope && !_userModified[idx];
+      }
+
+//---------------------------------------------------------
+//   slopeZero
+//---------------------------------------------------------
+
+bool Beam::slopeZero(const QList<ChordRest*>& cl)
+      {
+      if (hasNoSlope() || cl.size() < 2)
             return true;
 
       //
@@ -1102,7 +1132,7 @@ void Beam::computeStemLen(const QList<ChordRest*>& cl, qreal& py1, int beamLevel
       qreal dx            = c2->pagePos().x() - c1->pagePos().x();
       bool grace          = c1->isGrace();
 
-      bool zeroSlant  = noSlope(cl);
+      bool zeroSlant  = slopeZero(cl);
 
       int l1 = c1->line() * 2;
       int l2 = c2->line() * 2;
@@ -1110,6 +1140,8 @@ void Beam::computeStemLen(const QList<ChordRest*>& cl, qreal& py1, int beamLevel
       Bm bm;
       if (beamLevels == 1) {
             bm = beamMetric1(_up, l1 / 2, l2 / 2);
+            if (hasNoSlope())
+                  bm.s = 0.0;
 
             if (grace && bm.l) {
                   if (bm.l > 0)
@@ -1746,6 +1778,7 @@ void Beam::write(Xml& xml) const
 
       writeProperty(xml, P_STEM_DIRECTION);
       writeProperty(xml, P_DISTRIBUTE);
+      writeProperty(xml, P_BEAM_NO_SLOPE);
       writeProperty(xml, P_GROW_LEFT);
       writeProperty(xml, P_GROW_RIGHT);
 
@@ -1792,6 +1825,10 @@ void Beam::read(XmlReader& e)
                   }
             else if (tag == "distribute")
                   setDistribute(e.readInt());
+            else if (tag == "noSlope") {
+                  setNoSlope(e.readInt());
+                  noSlopeStyle = PropertyStyle::UNSTYLED;
+                  }
             else if (tag == "growLeft")
                   setGrowLeft(e.readDouble());
             else if (tag == "growRight")
@@ -1829,10 +1866,8 @@ void Beam::read(XmlReader& e)
                         }
                   fragments.append(f);
                   }
-#ifndef NDEBUG
             else if (tag == "l1" || tag == "l2")      // ignore
                   e.skipCurrentElement();
-#endif
             else if (tag == "subtype")          // obsolete
                   e.skipCurrentElement();
             else if (!Element::readProperties(e))
@@ -1924,6 +1959,9 @@ void Beam::reset()
             }
       if (beamDirection() != MScore::AUTO)
             score()->undoChangeProperty(this, P_STEM_DIRECTION, int(MScore::AUTO));
+      if (noSlopeStyle == PropertyStyle::UNSTYLED)
+            score()->undoChangeProperty(this, P_BEAM_NO_SLOPE, propertyDefault(P_BEAM_NO_SLOPE), PropertyStyle::STYLED);
+
       setGenerated(true);
       }
 
@@ -2054,6 +2092,7 @@ QVariant Beam::getProperty(P_ID propertyId) const
             case P_GROW_RIGHT:     return growRight();
             case P_USER_MODIFIED:  return userModified();
             case P_BEAM_POS:       return beamPos();
+            case P_BEAM_NO_SLOPE:  return noSlope();
             default:
                   return Element::getProperty(propertyId);
             }
@@ -2085,6 +2124,10 @@ bool Beam::setProperty(P_ID propertyId, const QVariant& v)
                   if (userModified())
                         setBeamPos(v.toPointF());
                   break;
+            case P_BEAM_NO_SLOPE:
+                  setNoSlope(v.toBool());
+                  noSlopeStyle = PropertyStyle::UNSTYLED;
+                  break;
             default:
                   if (!Element::setProperty(propertyId, v))
                         return false;
@@ -2108,8 +2151,52 @@ QVariant Beam::propertyDefault(P_ID id) const
             case P_GROW_RIGHT:     return 1.0;
             case P_USER_MODIFIED:  return false;
             case P_BEAM_POS:       return beamPos();
+            case P_BEAM_NO_SLOPE:  return score()->styleB(ST_beamNoSlope);
             default:               return Element::propertyDefault(id);
             }
+      }
+
+//---------------------------------------------------------
+//   propertyStyle
+//---------------------------------------------------------
+
+PropertyStyle Beam::propertyStyle(P_ID id) const
+      {
+      switch (id) {
+            case P_BEAM_NO_SLOPE:
+                  return noSlopeStyle;
+
+            default:
+                  return Element::propertyStyle(id);
+            }
+      }
+
+//---------------------------------------------------------
+//   resetProperty
+//---------------------------------------------------------
+
+void Beam::resetProperty(P_ID id)
+      {
+      switch (id) {
+            case P_BEAM_NO_SLOPE:
+                  setNoSlope(score()->styleB(ST_beamNoSlope));
+                  noSlopeStyle = PropertyStyle::STYLED;
+                  break;
+
+            default:
+                  return Element::resetProperty(id);
+            }
+      }
+
+//---------------------------------------------------------
+//   styleChanged
+//    reset all styled values to actual style
+//---------------------------------------------------------
+
+void Beam::styleChanged()
+      {
+      if (noSlopeStyle == PropertyStyle::STYLED)
+            setNoSlope(score()->styleB(ST_beamNoSlope));
       }
 
 }

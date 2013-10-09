@@ -52,6 +52,7 @@
 #include "libmscore/score.h"
 #include "libmscore/segment.h"
 #include "libmscore/slur.h"
+#include "libmscore/tie.h"
 #include "libmscore/staff.h"
 #include "libmscore/tempotext.h"
 #include "libmscore/text.h"
@@ -400,62 +401,62 @@ void OveToMScore::convertGroups() {
 }
 
 ClefType OveClefToClef(OVE::ClefType type){
-	ClefType clef = CLEF_G;
+	ClefType clef = ClefType::G;
 	switch(type){
 	case OVE::Clef_Treble:{
-		clef = CLEF_G;
+		clef = ClefType::G;
 		break;
 	}
 	case OVE::Clef_Bass:{
-		clef = CLEF_F;
+		clef = ClefType::F;
 		break;
 	}
 	case OVE::Clef_Alto:{
-		clef = CLEF_C3;
+		clef = ClefType::C3;
 		break;
 	}
 	case OVE::Clef_UpAlto:{
-		clef = CLEF_C4;
+		clef = ClefType::C4;
 		break;
 	}
 	case OVE::Clef_DownDownAlto:{
-		clef = CLEF_C1;
+		clef = ClefType::C1;
 		break;
 	}
 	case OVE::Clef_DownAlto:{
-		clef = CLEF_C2;
+		clef = ClefType::C2;
 		break;
 	}
 	case OVE::Clef_UpUpAlto:{
-		clef = CLEF_C5;
+		clef = ClefType::C5;
 		break;
 	}
 	case OVE::Clef_Treble8va:{
-		clef = CLEF_G1;
+		clef = ClefType::G1;
 		break;
 	}
 	case OVE::Clef_Bass8va:{
-		clef = CLEF_F_8VA;
+		clef = ClefType::F_8VA;
 		break;
 	}
 	case OVE::Clef_Treble8vb:{
-		clef = CLEF_G3;
+		clef = ClefType::G3;
 		break;
 	}
 	case OVE::Clef_Bass8vb:{
-		clef = CLEF_F8;
+		clef = ClefType::F8;
 		break;
 	}
 	case OVE::Clef_Percussion1:{
-		clef = CLEF_PERC;
+		clef = ClefType::PERC;
 		break;
 	}
 	case OVE::Clef_Percussion2:{
-		clef = CLEF_PERC2;
+		clef = ClefType::PERC2;
 		break;
 	}
 	case OVE::Clef_TAB:{
-		clef = CLEF_TAB;
+		clef = ClefType::TAB;
 		break;
 	}
 	default:
@@ -612,23 +613,23 @@ void OveToMScore::convertTrackHeader(OVE::Track* track, Part* part){
 	}
 }
 
-static Ottava::OttavaType OctaveShiftTypeToInt(OVE::OctaveShiftType type) {
-	Ottava::OttavaType subtype = Ottava::OTTAVA_8VA;
+static OttavaType OctaveShiftTypeToInt(OVE::OctaveShiftType type) {
+	OttavaType subtype = OttavaType::OTTAVA_8VA;
 	switch (type) {
 	case OVE::OctaveShift_8: {
-		subtype = Ottava::OTTAVA_8VA;
+		subtype = OttavaType::OTTAVA_8VA;
 		break;
 	}
 	case OVE::OctaveShift_15: {
-		subtype = Ottava::OTTAVA_15MA;
+		subtype = OttavaType::OTTAVA_15MA;
 		break;
 	}
 	case OVE::OctaveShift_Minus_8: {
-		subtype = Ottava::OTTAVA_8VB;
+		subtype = OttavaType::OTTAVA_8VB;
 		break;
 	}
 	case OVE::OctaveShift_Minus_15: {
-		subtype = Ottava::OTTAVA_15MB;
+		subtype = OttavaType::OTTAVA_15MB;
 		break;
 	}
 	default:
@@ -714,7 +715,7 @@ void OveToMScore::convertLineBreak(){
 				if ((int)line->getBeginBar() + (int)line->getBarCount()-1 == measure->no()) {
 					LayoutBreak* lb = new LayoutBreak(score_);
 					lb->setTrack(0);
-					lb->setLayoutBreakType(LAYOUT_BREAK_LINE);
+					lb->setLayoutBreakType(LayoutBreak::LINE);
 					measure->add(lb);
 				}
 			}
@@ -2158,10 +2159,10 @@ void OveToMScore::convertSlurs(Measure* measure, int part, int staff, int track)
 
 	        Slur* slur = new Slur(score_);
 	        slur->setSlurDirection(slurPtr->getShowOnTop()? MScore::UP : MScore::DOWN);
-              slur->setTick(absStartTick);
-              slur->setTick2(absEndTick);
+		slur->setTick(absStartTick);
+		slur->setTick2(absEndTick);
 	        slur->setTrack(track);
-	        // slur->setTrack2(track+endContainer->getOffsetStaff());
+		slur->setTrack2(track+endContainer->getOffsetStaff());
 
 	        score_->addSpanner(slur);
 		}
@@ -2379,7 +2380,8 @@ Score::FileError importOve(Score* score, const QString& name) {
 	OVE::OveSong oveSong;
 
 	QFile oveFile(name);
-
+	if(!oveFile.exists())
+		return Score::FILE_NOT_FOUND;
 	if (!oveFile.open(QFile::ReadOnly)) {
 		//messageOutString(QString("can't read file!"));
 		return Score::FILE_OPEN_ERROR;
@@ -2389,7 +2391,7 @@ Score::FileError importOve(Score* score, const QString& name) {
 
 	oveFile.close();
 
-	oveSong.setTextCodecName(preferences.importCharset);
+	oveSong.setTextCodecName(preferences.importCharsetOve);
 	oveLoader->setOve(&oveSong);
 	oveLoader->setFileStream((unsigned char*) buffer.data(), buffer.size());
 	bool result = oveLoader->load();

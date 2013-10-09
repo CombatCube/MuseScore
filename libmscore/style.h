@@ -215,6 +215,7 @@ enum StyleIdx {
       ST_beamWidth,
       ST_beamDistance,
       ST_beamMinLen,
+      ST_beamNoSlope,
 
       ST_dotMag,
       ST_dotNoteDistance,
@@ -223,6 +224,7 @@ enum StyleIdx {
       ST_propertyDistanceHead,
       ST_propertyDistanceStem,
       ST_propertyDistance,
+      ST_articulationMag,
       ST_lastSystemFillLimit,
 
       ST_hairpinY,
@@ -321,6 +323,7 @@ enum StyleIdx {
       ST_ottavaHook,
       ST_ottavaLineWidth,
       ST_ottavaLineStyle,
+      ST_ottavaNumbersOnly,
 
       ST_tabClef,
 
@@ -332,6 +335,15 @@ enum StyleIdx {
       ST_linearStretch,
       ST_crossMeasureValues,
       ST_keySigNaturals,
+
+      ST_tupletMaxSlope,
+      ST_tupletOufOfStaff,
+      ST_tupletVHeadDistance,
+      ST_tupletVStemDistance,
+      ST_tupletStemLeftDistance,
+      ST_tupletStemRightDistance,
+      ST_tupletNoteLeftDistance,
+      ST_tupletNoteRightDistance,
 
       ST_STYLES
       };

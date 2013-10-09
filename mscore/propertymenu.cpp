@@ -205,14 +205,6 @@ void ScoreView::createElementPropertyMenu(Element* e, QMenu* popup)
             popup->addSeparator();
             popup->addAction(tr("Time Signature Properties..."))->setData("ts-props");
             }
-      else if (e->type() == Element::ACCIDENTAL) {
-            Accidental* acc = static_cast<Accidental*>(e);
-            genPropertyMenu1(e, popup);
-            QAction* a = popup->addAction(QT_TRANSLATE_NOOP("Properties", "small"));
-            a->setCheckable(true);
-            a->setChecked(acc->small());
-            a->setData("smallAcc");
-            }
       else if (e->type() == Element::CLEF) {
             genPropertyMenu1(e, popup);
             Clef* clef = static_cast<Clef*>(e);
@@ -300,7 +292,7 @@ void ScoreView::createElementPropertyMenu(Element* e, QMenu* popup)
             popup->addAction(tr("Style..."))->setData("style");
             popup->addAction(tr("Chord Articulation..."))->setData("articulation");
             }
-      else if (e->type() == Element::LAYOUT_BREAK && static_cast<LayoutBreak*>(e)->layoutBreakType() == LAYOUT_BREAK_SECTION) {
+      else if (e->type() == Element::LAYOUT_BREAK && static_cast<LayoutBreak*>(e)->layoutBreakType() == LayoutBreak::SECTION) {
             popup->addAction(tr("Section Break Properties..."))->setData("break-props");
             }
       else if (e->type() == Element::INSTRUMENT_CHANGE) {
@@ -323,7 +315,6 @@ void ScoreView::createElementPropertyMenu(Element* e, QMenu* popup)
             genPropertyMenu1(e, popup);
             popup->addSeparator();
             popup->addAction(tr("Harmony Properties..."))->setData("ha-props");
-            popup->addAction(tr("Text Properties..."))->setData("text-props");
             }
       else if (e->type() == Element::INSTRUMENT_NAME) {
             popup->addAction(tr("Staff Properties..."))->setData("staff-props");
@@ -481,8 +472,6 @@ void ScoreView::elementPropertyAction(const QString& cmd, Element* e)
                         }
                   }
             }
-      else if (cmd == "smallAcc")
-            score()->undoChangeProperty(e, P_SMALL, !static_cast<Accidental*>(e)->small());
       else if (cmd == "smallNote")
             score()->undoChangeProperty(e, P_SMALL, !static_cast<Note*>(e)->small());
       else if (cmd == "clef-courtesy") {

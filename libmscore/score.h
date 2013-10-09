@@ -31,6 +31,7 @@
 #include "accidental.h"
 #include "note.h"
 #include "spannermap.h"
+#include "pitchspelling.h"
 
 class QPainter;
 
@@ -74,7 +75,6 @@ class Part;
 class Instrument;
 class UndoStack;
 class RepeatList;
-class MusicXmlCreator;
 class TimeSig;
 class Clef;
 class Beam;
@@ -95,6 +95,9 @@ class Cursor;
 struct PageContext;
 class BarLine;
 class Bracket;
+class KeyList;
+enum class OttavaType;
+enum class ClefType : signed char;
 
 extern bool showRubberBand;
 
@@ -332,6 +335,8 @@ class Score : public QObject {
       QList<Staff*> _staves;
 
       int _playPos;     ///< sequencer seek position
+      int _loopInTick;    ///< In tick for loop play position
+      int _loopOutTick;   ///< Out tick for loop play position
 
       bool _foundPlayPosAfterRepeats; ///< Temporary used during playback rendering
                                       ///< indicating if playPos after expanded repeats
@@ -343,8 +348,6 @@ class Score : public QObject {
       QMap<int, LinkedElements*> _elinks;
       QMap<QString, QString> _metaTags;
 
-      QList<MusicXmlCreator*> _creators;
-      bool _creditsRead;             ///< credits were read at MusicXML import
       bool _defaultsRead;            ///< defaults were read at MusicXML import, allow export of defaults in convertermode
 
       Selection _selection;
@@ -399,12 +402,12 @@ class Score : public QObject {
 
       Page* addPage();
       bool layoutSystem(qreal& minWidth, qreal w, bool, bool);
+      void createMMRests();
       bool layoutSystem1(qreal& minWidth, bool, bool);
       QList<System*> layoutSystemRow(qreal w, bool, bool);
       void addSystemHeader(Measure* m, bool);
       System* getNextSystem(bool, bool);
       bool doReLayout();
-      Measure* skipEmptyMeasures(Measure*, System*);
 
       void layoutStage2();
       void layoutStage3();
@@ -448,6 +451,7 @@ class Score : public QObject {
       void cmdRemovePart(Part*);
       void cmdAddTie();
       void cmdAddHairpin(bool);
+      void cmdAddOttava(OttavaType);
       void cmdAddStretch(qreal);
       void transpose(Note* n, Interval, bool useSharpsFlats);
 
@@ -520,7 +524,7 @@ class Score : public QObject {
       void undoAddBracket(Staff* staff, int level, BracketType type, int span);
       void undoRemoveBracket(Bracket*);
 
-      void setGraceNote(Chord*,  int pitch, NoteType type, bool behind, int len);
+      void setGraceNote(Chord*,  int pitch, NoteType type, bool behind, int len, int tpc = INVALID_TPC);
 
       Segment* setNoteRest(Segment*, int track, NoteVal nval, Fraction, MScore::Direction stemDirection = MScore::AUTO);
       void changeCRlen(ChordRest* cr, const TDuration&);
@@ -560,8 +564,8 @@ class Score : public QObject {
       void repitchNote(const Position& pos, bool replace);
       void setInputState(Element* obj);
 
-      void startCmd();        // start undoable command
-      void endCmd();          // end undoable command
+      Q_INVOKABLE void startCmd();        // start undoable command
+      Q_INVOKABLE void endCmd();          // end undoable command
       void end();             // layout & update canvas
       void end1();
       void update();
@@ -624,12 +628,20 @@ class Score : public QObject {
       MeasureBase* tick2measureBase(int tick) const;
       Segment* tick2segment(int tick, bool first = false, Segment::SegmentTypes st = Segment::SegAll) const;
       Segment* tick2segmentEnd(int track, int tick) const;
-      Segment* tick2nearestSegment(int tick) const;
+      Segment* tick2leftSegment(int tick) const;
+      Segment* tick2rightSegment(int tick) const;
       void fixTicks();
       bool addArticulation(Element*, Articulation* atr);
 
       bool playlistDirty();
       void setPlaylistDirty(bool val) { _playlistDirty = val; }
+      int loopInTick() { return _loopInTick; }
+      int loopOutTick() { return _loopOutTick; }
+      void setLoopInTick(int tick);
+      void setLoopOutTick(int tick);
+      void updateLoopCursors();
+      void showLoopCursors();
+      void hideLoopCursors();
 
       void cmd(const QAction*);
       int fileDivision(int t) const { return (t * MScore::division + _fileDivision/2) / _fileDivision; }
@@ -708,6 +720,7 @@ class Score : public QObject {
       void cmdTransposeStaff(int staffIdx, Interval, bool useDoubleSharpsFlats);
       void cmdConcertPitchChanged(bool, bool useSharpsFlats);
 
+      void setTempomap(TempoMap* tm);
       TempoMap* tempomap() const;
       TimeSigMap* sigmap() const;
 
@@ -717,13 +730,8 @@ class Score : public QObject {
       void setPause(int tick, qreal seconds);
       qreal tempo(int tick) const;
 
-      bool creditsRead() const                       { return _creditsRead;     }
-      void setCreditsRead(bool val)                  { _creditsRead = val;      }
       bool defaultsRead() const                      { return _defaultsRead;    }
       void setDefaultsRead(bool b)                   { _defaultsRead = b;       }
-      void addCreator(MusicXmlCreator* c)            { _creators.append(c);     }
-      const MusicXmlCreator* getCreator(int i) const { return _creators.at(i);  }
-      int numberOfCreators() const                   { return _creators.size(); }
       Text* getText(int subtype);
 
       void lassoSelect(const QRectF&);
@@ -742,7 +750,7 @@ class Score : public QObject {
 
       void adjustBracketsDel(int sidx, int eidx);
       void adjustBracketsIns(int sidx, int eidx);
-      void renumberMeasures();
+      void adjustKeySigs(int sidx, int eidx, KeyList km);
 
       void endUndoRedo();
       Measure* searchLabel(const QString& s);
@@ -767,13 +775,17 @@ class Score : public QObject {
       MeasureBaseList* measures()             { return &_measures; }
       bool checkHasMeasures() const;
       MeasureBase* first() const;
+      MeasureBase* firstMM() const;
       MeasureBase* last()  const;
       Q_INVOKABLE Ms::Measure* firstMeasure() const;
+      Ms::Measure* firstMeasureMM() const;
       Q_INVOKABLE Ms::Measure* lastMeasure() const;
+      Ms::Measure* lastMeasureMM() const;
       int measureIdx(MeasureBase*) const;
       MeasureBase* measure(int idx) const;
 
       Q_INVOKABLE Ms::Segment* firstSegment(Ms::Segment::SegmentTypes s = Segment::SegAll) const;
+      Ms::Segment* firstSegmentMM(Ms::Segment::SegmentTypes s = Segment::SegAll) const;
       Q_INVOKABLE Ms::Segment* lastSegment() const;
 
       void connectTies();

@@ -381,6 +381,14 @@
     <seq>Shift+H</seq>
     </SC>
   <SC>
+    <key>add-8va</key>
+    <seq>Ctrl+Y,Ctrl+O,Ctrl+A</seq>
+    </SC>
+  <SC>
+    <key>add-8vb</key>
+    <seq>Ctrl+Y,Ctrl+O,Ctrl+B</seq>
+    </SC>
+  <SC>
     <key>escape</key>
     <seq>Esc</seq>
     </SC>
@@ -398,7 +406,7 @@
     </SC>
   <SC>
     <key>append-measures</key>
-    <seq>Ctrl+Shift+B</seq>
+    <seq>Alt+Shift+B</seq>
     </SC>
   <SC>
     <key>insert-measure</key>
@@ -558,7 +566,15 @@
     </SC>
   <SC>
     <key>loop</key>
-    <seq>Shift+Space</seq>
+    <seq>Shift+L</seq>
+    </SC>
+  <SC>
+    <key>loop-in</key>
+    <seq>Shift+I</seq>
+    </SC>
+  <SC>
+    <key>loop-out</key>
+    <seq>Shift+O</seq>
     </SC>
   <SC>
     <key>play-prev-chord</key>
@@ -590,11 +606,11 @@
     </SC>
   <SC>
     <key>clef-violin</key>
-    <seq>Ctrl+Y, Ctrl+1</seq>
+    <seq>Ctrl+Y,Ctrl+1</seq>
     </SC>
   <SC>
     <key>clef-bass</key>
-    <seq>Ctrl+Y, Ctrl+2</seq>
+    <seq>Ctrl+Y,Ctrl+2</seq>
     </SC>
   <SC>
     <key>system-break</key>
@@ -675,10 +691,6 @@
   <SC>
     <key>revision</key>
     <seq>Ctrl+F11</seq>
-    </SC>
-  <SC>
-    <key>show-omr</key>
-    <seq>O</seq>
     </SC>
   <SC>
     <key>fullscreen</key>
@@ -808,6 +820,10 @@
     <seq>Q</seq>
     </SC>
   <SC>
+    <key>rest-TAB</key>
+    <seq>;</seq>
+    </SC>
+  <SC>
     <key>string-above</key>
     <seq>Up</seq>
     </SC>
@@ -858,13 +874,14 @@
   <SC>
     <key>fret-8</key>
     <seq>8</seq>
-    <seq>J</seq>
+    <seq>I</seq>
     </SC>
   <SC>
     <key>fret-9</key>
     <seq>9</seq>
     <seq>K</seq>
     </SC>
+<!-- HARMONY / FIGURED BASS specific shortcuts -->
   <SC>
     <key>advance-longa</key>
     <seq>Ctrl+9</seq>
@@ -916,6 +933,10 @@
   <SC>
     <key>next-beat-TEXT</key>
     <seq>;</seq>
+    </SC>
+  <SC>
+    <key>toggle-mmrest</key>
+    <seq>M</seq>
     </SC>
   </Shortcuts>
 

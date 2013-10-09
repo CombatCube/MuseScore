@@ -41,6 +41,12 @@ struct LHRHSeparation
       MidiOperation::Note splitPitchNote = MidiOperation::Note::E;
       };
 
+struct SplitDrums
+      {
+      bool doSplit = false;
+      bool showStaffBracket = true;
+      };
+
       // bool and enum-like elementary operations (itself and inside structs) are allowed
 struct TrackOperations
       {
@@ -51,13 +57,19 @@ struct TrackOperations
       LHRHSeparation LHRH;
       SearchTuplets tuplets;
       bool useMultipleVoices = true;
-      bool changeClef = false;
+      bool changeClef = true;
+      MidiOperation::Swing swing = MidiOperation::Swing::NONE;
+      SplitDrums drums;
+      bool pickupMeasure = true;
+      int lyricTrackIndex = -1;     // empty lyric
       };
 
 struct TrackMeta
       {
-      QString staffName;
+      std::string staffName;    // will be converted to unicode later
       QString instrumentName;
+      bool isDrumTrack;
+      int initLyricTrackIndex;
       };
 
 struct TrackData
@@ -69,8 +81,12 @@ struct TrackData
 struct DefinedTrackOperations
       {
       QSet<int> undefinedOpers;
+      bool isDrumTrack;
+      bool allTracksSelected;
       TrackOperations opers;
       };
+
+class ReducedFraction;
 
 class MidiImportOperations
       {
@@ -78,15 +94,22 @@ class MidiImportOperations
       void appendTrackOperations(const TrackOperations& operations);
       void clear();
       void setCurrentTrack(int trackIndex);
+      void setCurrentMidiFile(const QString &fileName);
       int currentTrack() const { return currentTrack_; }
       TrackOperations currentTrackOperations() const;
       TrackOperations trackOperations(int trackIndex) const;
       int count() const { return operations_.size(); }
       MidiData& midiData() { return midiData_; }
+      QString charset() const;
+      void adaptForPercussion(int trackIndex);
+                  // lyrics
+      void addTrackLyrics(const std::multimap<ReducedFraction, std::string> &trackLyrics);
+      const QList<std::multimap<ReducedFraction, std::string> > *getLyrics();
 
    private:
       QList<TrackOperations> operations_;
       int currentTrack_ = -1;
+      QString currentMidiFile_;
       MidiData midiData_;
 
       bool isValidIndex(int index) const;

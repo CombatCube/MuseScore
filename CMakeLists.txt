@@ -41,7 +41,7 @@ include (GetCompilerVersion)
 include (CreatePrecompiledHeader)
 
 # for debugging the make system uncomment next line:
-# set(CMAKE_VERBOSE_MAKEFILE ON)
+#set(CMAKE_VERBOSE_MAKEFILE ON)
 
 set(MSCORE_UNSTABLE  TRUE)          # mark as unstable
 
@@ -104,8 +104,9 @@ if (APPLE)
    set(CMAKE_CXX_FLAGS_RELEASE "-std=c++0x -fPIC -stdlib=libc++ -O2 -DNDEBUG")
 else (APPLE)
    if (MINGW)
-      set(CMAKE_CXX_FLAGS_DEBUG   "-std=gnu++0x -g")
-      set(CMAKE_CXX_FLAGS_RELEASE "-std=gnu++0x -O2 -DNDEBUG")
+      # -mno-ms-bitfields see #22048
+      set(CMAKE_CXX_FLAGS_DEBUG   "-std=gnu++0x -mno-ms-bitfields -g")
+      set(CMAKE_CXX_FLAGS_RELEASE "-std=gnu++0x -mno-ms-bitfields -O2 -DNDEBUG")
    else (MINGW)
       set(CMAKE_CXX_FLAGS_DEBUG   "-std=gnu++0x -fPIC -fPIE -g")
       set(CMAKE_CXX_FLAGS_RELEASE "-std=gnu++0x -fPIC -O2 -DNDEBUG")
@@ -140,9 +141,9 @@ else (MINGW OR APPLE)
 endif (MINGW OR APPLE)
 
 ##
-##  look for Qt4
+##  look for Qt5
 ##
-SET(QT_MIN_VERSION    "4.8.0")
+SET(QT_MIN_VERSION    "5.1.0")
 SET(QT_USE_QTXML         TRUE)
 SET(QT_USE_QTSVG         TRUE)
 SET(QT_USE_QTNETWORK     TRUE)

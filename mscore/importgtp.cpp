@@ -1,21 +1,13 @@
 //=============================================================================
-//  MusE Score
-//  Linux Music Score Editor
-//  $Id:$
+//  MuseScore
+//  Music Composition & Notation
 //
 //  Copyright (C) 2011 Werner Schweer
 //
 //  This program is free software; you can redistribute it and/or modify
-//  it under the terms of the GNU General Public License version 2.
-//
-//  This program is distributed in the hope that it will be useful,
-//  but WITHOUT ANY WARRANTY; without even the implied warranty of
-//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//  GNU General Public License for more details.
-//
-//  You should have received a copy of the GNU General Public License
-//  along with this program; if not, write to the Free Software
-//  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+//  it under the terms of the GNU General Public License version 2
+//  as published by the Free Software Foundation and appearing in
+//  the file LICENCE.GPL
 //=============================================================================
 
 #include "importgtp.h"
@@ -36,6 +28,7 @@
 #include "libmscore/lyrics.h"
 #include "libmscore/tempotext.h"
 #include "libmscore/slur.h"
+#include "libmscore/tie.h"
 #include "libmscore/tuplet.h"
 #include "libmscore/barline.h"
 #include "libmscore/excerpt.h"
@@ -48,6 +41,7 @@
 #include "libmscore/tremolobar.h"
 #include "libmscore/segment.h"
 #include "libmscore/rehearsalmark.h"
+#include "preferences.h"
 
 namespace Ms {
 
@@ -83,6 +77,7 @@ GuitarPro::GuitarPro(Score* s, int v)
       {
       score   = s;
       version = v;
+      _codec = QTextCodec::codecForName(preferences.importCharsetGP.toLatin1());
       }
 
 GuitarPro::~GuitarPro()
@@ -149,7 +144,10 @@ QString GuitarPro::readPascalString(int n)
       read(s, l);
       s[l] = 0;
       skip(n - l);
-      return QString(s);
+      if(_codec)
+            return _codec->toUnicode(s);
+      else
+            return QString(s);
       }
 
 //---------------------------------------------------------
@@ -162,7 +160,10 @@ QString GuitarPro::readWordPascalString()
       char c[l+1];
       read(c, l);
       c[l] = 0;
-      return QString::fromLocal8Bit(c);
+      if(_codec)
+            return _codec->toUnicode(c);
+      else
+            return QString::fromLocal8Bit(c);
       }
 
 //---------------------------------------------------------
@@ -175,7 +176,10 @@ QString GuitarPro::readBytePascalString()
       char c[l+1];
       read(c, l);
       c[l] = 0;
-      return QString::fromLocal8Bit(c);
+      if(_codec)
+            return  _codec->toUnicode(c);
+      else
+            return QString::fromLocal8Bit(c);
       }
 
 //---------------------------------------------------------
@@ -193,7 +197,10 @@ QString GuitarPro::readDelphiString()
       char c[l + 1];
       read(c, l);
       c[l] = 0;
-      return QString::fromLatin1(c);
+      if(_codec)
+            return  _codec->toUnicode(c);
+      else
+            return QString::fromLatin1(c);
       }
 
 //---------------------------------------------------------
@@ -499,10 +506,10 @@ void GuitarPro1::read(QFile* fp)
                   tuning2[strings-k-1] = tuning[k];
 
             int frets = 32;   // TODO
-            Tablature* tab = new Tablature(frets, strings, tuning2);
+            StringData* stringData = new StringData(frets, strings, tuning2);
             Part* part = score->staff(i)->part();
             Instrument* instr = part->instr();
-            instr->setTablature(tab);
+            instr->setStringData(stringData);
             }
 
       measures = readInt();
@@ -605,7 +612,7 @@ void GuitarPro1::read(QFile* fp)
                         cr->setDurationType(d);
                         segment->add(cr);
                         Staff* staff = cr->staff();
-                        int numStrings = staff->part()->instr()->tablature()->strings();
+                        int numStrings = staff->part()->instr()->stringData()->strings();
                         for (int i = 6; i >= 0; --i) {
                               if (strings & (1 << i) && ((6-i) < numStrings)) {
                                     Note* note = new Note(score);
@@ -776,10 +783,10 @@ qDebug("BeginRepeat=============================================\n");
             int tuning2[strings];
             for (int k = 0; k < strings; ++k)
                   tuning2[strings-k-1] = tuning[k];
-            Tablature* tab = new Tablature(frets, strings, tuning2);
+            StringData* stringData = new StringData(frets, strings, tuning2);
             Part* part = score->staff(i)->part();
             Instrument* instr = part->instr();
-            instr->setTablature(tab);
+            instr->setStringData(stringData);
             part->setPartName(name);
             instr->setTranspose(Interval(capo));
             part->setLongName(name);
@@ -789,16 +796,16 @@ qDebug("BeginRepeat=============================================\n");
             //
             Staff* staff = score->staff(i);
             int patch = channelDefaults[midiChannel].patch;
-            ClefType clefId = CLEF_G;
+            ClefType clefId = ClefType::G;
             if (midiChannel == GP_DEFAULT_PERCUSSION_CHANNEL) {
-                  clefId = CLEF_PERC;
+                  clefId = ClefType::PERC;
                   instr->setUseDrumset(true);
-                  staff->setStaffType(score->staffType(PERCUSSION_STAFF_TYPE));
+                  staff->setStaffType(score->staffType(PERC_DEFAULT_STAFF_TYPE));
                   }
             else if (patch >= 24 && patch < 32)
-                  clefId = CLEF_G3;
+                  clefId = ClefType::G3;
             else if (patch >= 32 && patch < 40)
-                  clefId = CLEF_F8;
+                  clefId = ClefType::F8;
             Measure* measure = score->firstMeasure();
             Clef* clef = new Clef(score);
             clef->setClefType(clefId);
@@ -808,7 +815,7 @@ qDebug("BeginRepeat=============================================\n");
 
 
             Channel& ch = instr->channel(0);
-            if (midiChannel == GP_DEFAULT_PERCUSSION_CHANNEL) {
+            if (midiChannel == PERC_DEFAULT_STAFF_TYPE) {
                   ch.program = 0;
                   ch.bank    = 128;
                   }
@@ -901,7 +908,7 @@ qDebug("BeginRepeat=============================================\n");
                         cr->setDurationType(d);
                         segment->add(cr);
                         Staff* staff = cr->staff();
-                        int numStrings = staff->part()->instr()->tablature()->strings();
+                        int numStrings = staff->part()->instr()->stringData()->strings();
                         for (int i = 6; i >= 0; --i) {
                               if (strings & (1 << i) && ((6-i) < numStrings)) {
                                     Note* note = new Note(score);
@@ -1015,7 +1022,7 @@ void GuitarPro1::readNote(int string, Note* note)
             note->setHeadGroup(Note::HEAD_CROSS);
             note->setGhost(true);
             }
-      int pitch = staff->part()->instr()->tablature()->getPitch(string, fretNumber);
+      int pitch = staff->part()->instr()->stringData()->getPitch(string, fretNumber);
       note->setFret(fretNumber);
       note->setString(string);
       note->setPitch(pitch);
@@ -1256,10 +1263,10 @@ qDebug("BeginRepeat=============================================\n");
             int tuning2[strings];
             for (int k = 0; k < strings; ++k)
                   tuning2[strings-k-1] = tuning[k];
-            Tablature* tab = new Tablature(frets, strings, tuning2);
+            StringData* stringData = new StringData(frets, strings, tuning2);
             Part* part = score->staff(i)->part();
             Instrument* instr = part->instr();
-            instr->setTablature(tab);
+            instr->setStringData(stringData);
             part->setPartName(name);
             part->setLongName(name);
             instr->setTranspose(Interval(capo));
@@ -1269,16 +1276,16 @@ qDebug("BeginRepeat=============================================\n");
             //
             Staff* staff = score->staff(i);
             int patch = channelDefaults[midiChannel].patch;
-            ClefType clefId = CLEF_G;
+            ClefType clefId = ClefType::G;
             if (midiChannel == GP_DEFAULT_PERCUSSION_CHANNEL) {
-                  clefId = CLEF_PERC;
+                  clefId = ClefType::PERC;
                   instr->setUseDrumset(true);
-                  staff->setStaffType(score->staffType(PERCUSSION_STAFF_TYPE));
+                  staff->setStaffType(score->staffType(PERC_DEFAULT_STAFF_TYPE));
                   }
             else if (patch >= 24 && patch < 32)
-                  clefId = CLEF_G3;
+                  clefId = ClefType::G3;
             else if (patch >= 32 && patch < 40)
-                  clefId = CLEF_F8;
+                  clefId = ClefType::F8;
             Measure* measure = score->firstMeasure();
             Clef* clef = new Clef(score);
             clef->setClefType(clefId);
@@ -1400,7 +1407,7 @@ qDebug("BeginRepeat=============================================\n");
                         cr->setDurationType(d);
                         segment->add(cr);
                         Staff* staff = cr->staff();
-                        int numStrings = staff->part()->instr()->tablature()->strings();
+                        int numStrings = staff->part()->instr()->stringData()->strings();
                         for (int i = 6; i >= 0; --i) {
                               if (strings & (1 << i) && ((6-i) < numStrings)) {
                                     Note* note = new Note(score);
@@ -1587,7 +1594,7 @@ void GuitarPro4::readNote(int string, Note* note, GpNote* gpNote)
             note->setHeadGroup(Note::HEAD_CROSS);
             note->setGhost(true);
             }
-      int pitch = staff->part()->instr()->tablature()->getPitch(string, fretNumber);
+      int pitch = staff->part()->instr()->stringData()->getPitch(string, fretNumber);
       note->setFret(fretNumber);
       note->setString(string);
       note->setPitch(pitch);
@@ -1774,10 +1781,10 @@ void GuitarPro4::read(QFile* fp)
             int tuning2[strings];
             for (int k = 0; k < strings; ++k)
                   tuning2[strings-k-1] = tuning[k];
-            Tablature* tab = new Tablature(frets, strings, tuning2);
+            StringData* stringData = new StringData(frets, strings, tuning2);
             Part* part = score->staff(i)->part();
             Instrument* instr = part->instr();
-            instr->setTablature(tab);
+            instr->setStringData(stringData);
             part->setPartName(name);
             instr->setTranspose(Interval(capo));
             part->setLongName(name);
@@ -1787,16 +1794,16 @@ void GuitarPro4::read(QFile* fp)
             //
             Staff* staff = score->staff(i);
             int patch = channelDefaults[midiChannel].patch;
-            ClefType clefId = CLEF_G;
+            ClefType clefId = ClefType::G;
             if (midiChannel == GP_DEFAULT_PERCUSSION_CHANNEL) {
-                  clefId = CLEF_PERC;
+                  clefId = ClefType::PERC;
                   instr->setUseDrumset(true);
-                  staff->setStaffType(score->staffType(PERCUSSION_STAFF_TYPE));
+                  staff->setStaffType(score->staffType(PERC_DEFAULT_STAFF_TYPE));
                   }
             else if (patch >= 24 && patch < 32)
-                  clefId = CLEF_G3;
+                  clefId = ClefType::G3;
             else if (patch >= 32 && patch < 40)
-                  clefId = CLEF_F8;
+                  clefId = ClefType::F8;
             Measure* measure = score->firstMeasure();
             Clef* clef = new Clef(score);
             clef->setClefType(clefId);
@@ -1905,7 +1912,7 @@ void GuitarPro4::read(QFile* fp)
 
                         segment->add(cr);
                         Staff* staff = cr->staff();
-                        int numStrings = staff->part()->instr()->tablature()->strings();
+                        int numStrings = staff->part()->instr()->stringData()->strings();
                         bool hasSlur = false;
                         for (int i = 6; i >= 0; --i) {
                               if (strings & (1 << i) && ((6-i) < numStrings)) {
@@ -1923,6 +1930,7 @@ void GuitarPro4::read(QFile* fp)
                               Slur* slur = new Slur(score);
                               slur->setParent(0);
                               slur->setTrack(staffIdx * VOICES);
+                              slur->setTrack2(staffIdx * VOICES);
                               slur->setTick(cr->tick());
                               slur->setTick2(cr->tick());
                               slurs[staffIdx] = slur;
@@ -1932,6 +1940,7 @@ void GuitarPro4::read(QFile* fp)
                               Slur* s = slurs[staffIdx];
                               slurs[staffIdx] = 0;
                               s->setTick2(cr->tick());
+                              s->setTrack2(cr->track());
                               }
                         else if (slurs[staffIdx] && hasSlur) {
                               }
@@ -2077,7 +2086,7 @@ void GuitarPro5::readNote(int string, Note* note)
             note->setHeadGroup(Note::HEAD_CROSS);
             note->setGhost(true);
             }
-      int pitch = staff->part()->instr()->tablature()->getPitch(string, fretNumber);
+      int pitch = staff->part()->instr()->stringData()->getPitch(string, fretNumber);
       note->setFret(fretNumber);
       note->setString(string);
       note->setPitch(pitch);
@@ -2309,7 +2318,7 @@ int GuitarPro5::readBeat(int tick, int voice, Measure* measure, int staffIdx, Tu
             segment->add(cr);
 
             Staff* staff = cr->staff();
-            int numStrings = staff->part()->instr()->tablature()->strings();
+            int numStrings = staff->part()->instr()->stringData()->strings();
             for (int i = 6; i >= 0; --i) {
                   if (strings & (1 << i) && ((6-i) < numStrings)) {
                         Note* note = new Note(score);
@@ -2466,9 +2475,9 @@ void GuitarPro5::readTracks()
             int tuning2[strings];
             for (int k = 0; k < strings; ++k)
                   tuning2[strings-k-1] = tuning[k];
-            Tablature* tab = new Tablature(frets, strings, tuning2);
+            StringData* stringData = new StringData(frets, strings, tuning2);
             Instrument* instr = part->instr();
-            instr->setTablature(tab);
+            instr->setStringData(stringData);
             part->setPartName(name);
             part->setLongName(name);
             instr->setTranspose(Interval(capo));
@@ -2477,16 +2486,16 @@ void GuitarPro5::readTracks()
             // determine clef
             //
             int patch = channelDefaults[midiChannel].patch;
-            ClefType clefId = CLEF_G;
+            ClefType clefId = ClefType::G;
             if (midiChannel == GP_DEFAULT_PERCUSSION_CHANNEL) {
-                  clefId = CLEF_PERC;
+                  clefId = ClefType::PERC;
                   instr->setUseDrumset(true);
-                  staff->setStaffType(score->staffType(PERCUSSION_STAFF_TYPE));
+                  staff->setStaffType(score->staffType(PERC_DEFAULT_STAFF_TYPE));
                   }
             else if (patch >= 24 && patch < 32)
-                  clefId = CLEF_G3;
+                  clefId = ClefType::G3;
             else if (patch >= 32 && patch < 40)
-                  clefId = CLEF_F8;
+                  clefId = ClefType::F8;
             Measure* measure = score->firstMeasure();
             Clef* clef = new Clef(score);
             clef->setClefType(clefId);
@@ -2632,6 +2641,8 @@ void GuitarPro5::read(QFile* fp)
 Score::FileError importGTP(Score* score, const QString& name)
       {
       QFile fp(name);
+      if(!fp.exists())
+            return Score::FILE_NOT_FOUND;
       if (!fp.open(QIODevice::ReadOnly))
             return Score::FILE_OPEN_ERROR;
       uchar l;
@@ -2769,11 +2780,11 @@ Score::FileError importGTP(Score* score, const QString& name)
             stavesMap.append(score->staffIdx(staff));
             cloneStaves(score, pscore, stavesMap);
 
-            if (part->staves()->front()->staffType()->group() == PITCHED_STAFF) {
+            if (part->staves()->front()->staffType()->group() == STANDARD_STAFF_GROUP) {
                   p->setStaves(2);
                   Staff* s1 = p->staff(1);
                   s1->setUpdateKeymap(true);
-                  StaffTypeTablature* st = static_cast<StaffTypeTablature*>(pscore->staffType(TAB_STAFF_TYPE));
+                  StaffTypeTablature* st = static_cast<StaffTypeTablature*>(pscore->staffType(TAB_DEFAULT_STAFF_TYPE));
                   st->setSlashStyle(true);
                   s1->setStaffType(st);
                   s1->linkTo(s);
@@ -2788,9 +2799,9 @@ Score::FileError importGTP(Score* score, const QString& name)
             excerpt->parts().append(part);
             score->excerpts().append(excerpt);
 
-            if (part->staves()->front()->staffType()->group() == PITCHED_STAFF) {
+            if (part->staves()->front()->staffType()->group() == STANDARD_STAFF_GROUP) {
                   Staff* staff2 = pscore->staff(1);
-                  staff2->setStaffType(pscore->staffType(TAB_STAFF_TYPE));
+                  staff2->setStaffType(pscore->staffType(TAB_DEFAULT_STAFF_TYPE));
                   }
 
             //

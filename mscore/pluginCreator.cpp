@@ -56,6 +56,9 @@ PluginCreator::PluginCreator(QWidget* parent)
       actionOpen->setShortcut(QKeySequence(QKeySequence::Open));
       fileTools->addAction(actionOpen);
 
+      actionReload->setIcon(*icons[fileOpen_ICON]);
+      fileTools->addAction(actionReload);
+
       actionSave->setIcon(*icons[fileSave_ICON]);
       actionSave->setShortcut(QKeySequence(QKeySequence::Save));
       fileTools->addAction(actionSave);
@@ -86,6 +89,7 @@ PluginCreator::PluginCreator(QWidget* parent)
       connect(run,        SIGNAL(clicked()),     SLOT(runClicked()));
       connect(stop,       SIGNAL(clicked()),     SLOT(stopClicked()));
       connect(actionOpen, SIGNAL(triggered()),   SLOT(loadPlugin()));
+      connect(actionReload, SIGNAL(triggered()), SLOT(load()));
       connect(actionSave, SIGNAL(triggered()),   SLOT(savePlugin()));
       connect(actionNew,  SIGNAL(triggered()),   SLOT(newPlugin()));
       connect(actionQuit, SIGNAL(triggered()),   SLOT(close()));
@@ -293,16 +297,17 @@ void PluginCreator::runClicked()
       if (item->pluginType() == "dock" || item->pluginType() == "dialog") {
             view = new QQuickView(qml, 0);
             view->setTitle(item->menuPath().mid(item->menuPath().lastIndexOf(".") + 1));
-            view->setResizeMode(QQuickView::SizeViewToRootObject);
-            item->setParentItem(view->contentItem());
+            view->setColor(QApplication::palette().color(QPalette::Window));
+            view->setResizeMode(QQuickView::SizeRootObjectToView);
             view->setWidth(item->width());
             view->setHeight(item->height());
-            view->show();
+            item->setParentItem(view->contentItem());
 
             if (item->pluginType() == "dock") {
                   dock = new QDockWidget("Plugin", 0);
                   dock->setAttribute(Qt::WA_DeleteOnClose);
                   dock->setWidget(QWidget::createWindowContainer(view));
+                  dock->widget()->setSizePolicy(QSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding));
                   Qt::DockWidgetArea area = Qt::RightDockWidgetArea;
                   if (item->dockArea() == "left")
                         area = Qt::LeftDockWidgetArea;
@@ -314,16 +319,17 @@ void PluginCreator::runClicked()
                   connect(dock, SIGNAL(destroyed()), SLOT(closePlugin()));
                   dock->widget()->setAttribute(Qt::WA_DeleteOnClose);
                   }
+            view->show();
             view->raise();
             connect(view, SIGNAL(destroyed()), SLOT(closePlugin()));
             }
 
-      connect(qml,  SIGNAL(quit()),      SLOT(closePlugin()));
+      connect(qml,  SIGNAL(quit()), SLOT(closePlugin()));
 
-      if (mscore->currentScore())
+      if (mscore->currentScore() && item->pluginType() != "dock")
             mscore->currentScore()->startCmd();
       item->runPlugin();
-      if (mscore->currentScore())
+      if (mscore->currentScore() && item->pluginType() != "dock")
             mscore->currentScore()->endCmd();
       mscore->endCmd();
       }
@@ -370,6 +376,11 @@ void PluginCreator::loadPlugin()
                   return;
             }
       path = mscore->getPluginFilename(true);
+      load();
+      }
+
+void PluginCreator::load()
+      {
       if (path.isEmpty())
             return;
       QFile f(path);

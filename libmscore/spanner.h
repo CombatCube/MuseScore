@@ -67,14 +67,14 @@ class SpannerSegment : public Element {
       QPointF pos2() const                  { return _p2 + _userOff2; }
       const QPointF& ipos2() const          { return _p2;             }
 
-      virtual void startEdit(MuseScoreView*, const QPointF&);
-      virtual void endEdit();
-      virtual bool isEditable() const { return true; }
-      virtual bool isEdited(SpannerSegment*) const = 0;
+      virtual void startEdit(MuseScoreView*, const QPointF&) override;
+      virtual void endEdit() override;
+      virtual bool isEditable() const override { return true; }
 
-      virtual QVariant getProperty(P_ID id) const;
-      virtual bool setProperty(P_ID id, const QVariant& v);
-      virtual QVariant propertyDefault(P_ID id) const;
+      virtual QVariant getProperty(P_ID id) const override;
+      virtual bool setProperty(P_ID id, const QVariant& v) override;
+      virtual QVariant propertyDefault(P_ID id) const override;
+      virtual void reset() override;
       };
 
 //----------------------------------------------------------------------------------
@@ -104,13 +104,14 @@ class Spanner : public Element {
       Element* _startElement;
       Element* _endElement;
       int _tick, _tick2;
+      int _track2 = -1;
       int _id;                // used for xml serialization
 
       static QList<QPointF> userOffsets;
       static QList<QPointF> userOffsets2;
 
    protected:
-      static int editTick, editTick2;
+      static int editTick, editTick2, editTrack2;
 
    public:
       Spanner(Score* = 0);
@@ -118,13 +119,15 @@ class Spanner : public Element {
       ~Spanner();
 
       virtual ElementType type() const = 0;
-      virtual void setScore(Score* s);
+      virtual void setScore(Score* s) override;
 
       int tick() const         { return _tick;          }
       void setTick(int v)      { _tick = v;             }
       int tickLen() const      { return _tick2 - _tick; }
       int tick2() const        { return _tick2;         }
       void setTick2(int v)     { _tick2 = v;            }
+      int track2() const       { return _track2;        }
+      void setTrack2(int v)    { _track2 = v;           }
 
       int id() const           { return _id; }
       void setId(int v)        { _id = v;    }
@@ -135,13 +138,12 @@ class Spanner : public Element {
       const QList<SpannerSegment*>& spannerSegments() const { return segments; }
       QList<SpannerSegment*>& spannerSegments()             { return segments; }
 
-      virtual void add(Element*);
-      virtual void remove(Element*);
-      virtual void scanElements(void* data, void (*func)(void*, Element*), bool all=true);
-      virtual void startEdit(MuseScoreView*, const QPointF&);
-      virtual void endEdit();
-      virtual void setSelected(bool f);
-      virtual bool isEdited(Spanner* originalSpanner) const;
+      virtual void add(Element*) override;
+      virtual void remove(Element*) override;
+      virtual void scanElements(void* data, void (*func)(void*, Element*), bool all=true) override;
+      virtual void startEdit(MuseScoreView*, const QPointF&) override;
+      virtual void endEdit() override;
+      virtual void setSelected(bool f) override;
       bool removeSpannerBack();
       virtual void setYoff(qreal) {};    // used in musicxml import
 

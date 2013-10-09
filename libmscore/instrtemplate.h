@@ -22,10 +22,24 @@ namespace Ms {
 class Xml;
 class Part;
 class Staff;
-class Tablature;
+class StringData;
 
 //---------------------------------------------------------
-//   InstrumentTemplate
+//   InstrumentGenre
+//---------------------------------------------------------
+
+class InstrumentGenre {
+   public:
+      QString id;
+      QString name;
+
+      InstrumentGenre() {}
+      void write(Xml& xml) const;
+      void write1(Xml& xml) const;
+      void read(XmlReader&);
+      };
+
+//---------------------------------------------------------//   InstrumentTemplate
 //---------------------------------------------------------
 
 class InstrumentTemplate {
@@ -51,11 +65,12 @@ class InstrumentTemplate {
       bool useDrumset;
       Drumset* drumset;
 
-      Tablature* tablature;
+      StringData* stringData;
 
       QList<NamedEventList>   midiActions;
       QList<MidiArticulation> articulation;
       QList<Channel>          channel;
+      QList<InstrumentGenre*> genres;     //; list of genres this instrument belongs to
 
       ClefTypeList clefTypes[MAX_STAVES];
       int staffLines[MAX_STAVES];
@@ -70,6 +85,9 @@ class InstrumentTemplate {
       InstrumentTemplate(const InstrumentTemplate&);
       ~InstrumentTemplate();
       void init(const InstrumentTemplate&);
+      void linkGenre(const QString &);
+      void addGenre(QList<InstrumentGenre *>);
+      bool genreMember(const QString &);
 
       void setPitchRange(const QString& s, char* a, char* b) const;
       void write(Xml& xml) const;
@@ -93,6 +111,7 @@ struct InstrumentGroup {
       InstrumentGroup() { extended = false; }
       };
 
+extern QList<InstrumentGenre *> instrumentGenres;
 extern QList<InstrumentGroup*> instrumentGroups;
 extern bool loadInstrumentTemplates(const QString& instrTemplates);
 extern bool saveInstrumentTemplates(const QString& instrTemplates);

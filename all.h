@@ -44,6 +44,7 @@
 #include <QPointF>
 #include <QVariant>
 #include <QMap>
+#include <QByteArray>
 #include <QDateTime>
 #include <QtGlobal>
 #include <QtDebug>
@@ -139,6 +140,7 @@
 #include <QSpacerItem>
 #include <QGraphicsSceneMouseEvent>
 #include <QtConcurrent>
+#include <QScreen>
 
 #include <QSvgRenderer>
 #include <QSvgGenerator>
@@ -147,6 +149,7 @@
 #include <QNetworkReply>
 #include <QNetworkCookie>
 #include <QNetworkCookieJar>
+#include <QNetworkProxyFactory>
 #include <QHostAddress>
 #include <QUdpSocket>
 

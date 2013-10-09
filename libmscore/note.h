@@ -85,6 +85,7 @@ class NoteHead : public Symbol {
 //   @P hidden            bool  hidden, not played note (read only)
 //   @P mirror            bool  mirror note head on x axis (read only)
 //   @P small             bool  small note head
+//   @P play              bool  play note
 //   @P tuning            qreal tuning offset in cent
 //   @P veloType          enum  OFFSET_VAL, USER_VAL
 //   @P veloOffset        int
@@ -92,7 +93,7 @@ class NoteHead : public Symbol {
 //   @P dotPosition       enum AUTO, UP, DOWN
 //   @P headGroup         enum HEAD_NORMAL, HEAD_CROSS, HEAD_DIAMOND, HEAD_TRIANGLE, HEAD_MI, HEAD_SLASH, HEAD_XCIRCLE, HEAD_DO, HEAD_RE, HEAD_FA, HEAD_LA, HEAD_TI, HEAD_SOL, HEAD_BREVIS_ALT
 //   @P headType          enum HEAD_AUTO, HEAD_WHOLE, HEAD_HALF, HEAD_QUARTER, HEAD_BREVIS
-//   @P el                array[Element] list of elements attached to note head
+//   @P elements          array[Element] list of elements attached to note head
 //---------------------------------------------------------------------------------------
 
 class Note : public Element {
@@ -121,6 +122,7 @@ class Note : public Element {
       Q_PROPERTY(bool hidden                   READ hidden)
       Q_PROPERTY(bool mirror                   READ mirror)
       Q_PROPERTY(bool small                    READ small             WRITE undoSetSmall)
+      Q_PROPERTY(bool play                     READ play              WRITE undoSetPlay)
       Q_PROPERTY(qreal tuning                  READ tuning            WRITE undoSetTuning)
       Q_PROPERTY(Ms::MScore::ValueType veloType    READ veloType      WRITE undoSetVeloType)
       Q_PROPERTY(int veloOffset                READ veloOffset        WRITE undoSetVeloOffset)
@@ -128,7 +130,7 @@ class Note : public Element {
       Q_PROPERTY(Ms::MScore::Direction dotPosition READ dotPosition   WRITE undoSetDotPosition)
       Q_PROPERTY(NoteHeadGroup     headGroup   READ headGroup         WRITE undoSetHeadGroup)
       Q_PROPERTY(NoteHeadType      headType    READ headType          WRITE undoSetHeadType)
-      Q_PROPERTY(QQmlListProperty<Element> el  READ qmlElements)
+      Q_PROPERTY(QQmlListProperty<Element> elements  READ qmlElements)
 
       Q_ENUMS(NoteHeadGroup)
       Q_ENUMS(NoteHeadType)
@@ -150,6 +152,7 @@ class Note : public Element {
       bool dragMode;
       bool _mirror;           ///< True if note is mirrored at stem.
       bool _small;
+      bool _play;             // note is not played if false
       mutable bool _mark;     // for use in sequencer
 
       NoteHeadGroup _headGroup;
@@ -252,6 +255,9 @@ class Note : public Element {
       bool small() const              { return _small;   }
       void setSmall(bool val);
 
+      bool play() const               { return _play;    }
+      void setPlay(bool val)          { _play = val;     }
+
       Q_INVOKABLE Ms::Tie* tieFor() const  { return _tieFor;  }
       Q_INVOKABLE Ms::Tie* tieBack() const { return _tieBack; }
       void setTieFor(Tie* t)          { _tieFor = t;     }
@@ -322,6 +328,7 @@ class Note : public Element {
       void undoSetGhost(bool);
       void undoSetMirror(bool);
       void undoSetSmall(bool);
+      void undoSetPlay(bool);
       void undoSetTuning(qreal);
       void undoSetVeloType(MScore::ValueType);
       void undoSetVeloOffset(int);

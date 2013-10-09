@@ -345,7 +345,7 @@ void Shortcut::save()
       {
       QFile f(dataPath + "/shortcuts.xml");
       if (!f.open(QIODevice::WriteOnly)) {
-            printf("cannot save shortcuts\n");
+            qDebug("cannot save shortcuts");
             return;
             }
       Xml xml(&f);
@@ -407,9 +407,11 @@ void Shortcut::load()
       if (!f.exists())
             f.setFileName(":/data/shortcuts.xml");
       if (!f.open(QIODevice::ReadOnly)) {
-            printf("cannot open shortcuts\n");
+            qDebug("cannot open shortcuts");
             return;
             }
+      else
+            qDebug("read shortcuts from <%s>", qPrintable(f.fileName()));
 
       XmlReader e(&f);
 
@@ -423,17 +425,22 @@ void Shortcut::load()
                                     if (tag == "key") {
                                           QString val(e.readElementText());
                                           sc = getShortcut(val.toLatin1().data());
-                                          if (!sc) {
-                                                printf("cannot find shortcut <%s>\n", qPrintable(val));
-                                                break;
-                                                }
-                                          sc->clear();
+                                          if (!sc)
+                                                qDebug("cannot find shortcut <%s>", qPrintable(val));
+                                          else
+                                                sc->clear();
                                           }
-                                    else if (tag == "std")
-                                          sc->_standardKey = QKeySequence::StandardKey(e.readInt());
-                                    else if (tag == "seq")
+                                    else if (tag == "std") {
+                                          int i = e.readInt();
+                                          if(sc)
+                                                sc->_standardKey = QKeySequence::StandardKey(i);
+                                          }
+                                    else if (tag == "seq") {
+                                          QString s = e.readElementText();
+                                          if(sc)
+                                                sc->_keys.append(Shortcut::keySeqFromString(s, QKeySequence::PortableText));
 //                                          sc->_keys.append(QKeySequence::fromString(e.readElementText(), QKeySequence::PortableText));
-                                          sc->_keys.append(Shortcut::keySeqFromString(e.readElementText(), QKeySequence::PortableText));
+                                          }
                                     else
                                           e.unknown();
                                     }
@@ -470,7 +477,7 @@ static QList<Shortcut1*> loadDefaultShortcuts()
       QList<Shortcut1*> list;
       QFile f(":/data/shortcuts.xml");
       if (!f.open(QIODevice::ReadOnly)) {
-            printf("cannot open shortcuts\n");
+            qDebug("cannot open shortcuts");
             return list;
             }
       XmlReader e(&f);
@@ -549,17 +556,16 @@ void Shortcut::reset()
 
 static const QString numPadPrefix("NumPad+");
 static const int NUMPADPREFIX_SIZE = 7;         // the length in chars of the above string
-static const QString keySepar(", ");
 
 QString Shortcut::keySeqToString(const QKeySequence& keySeq, QKeySequence::SequenceFormat fmt)
       {
       QString s;
-      int   code, i;
-      for (i = 0; i < KEYSEQ_SIZE; ++i) {
+      for (int i = 0; i < KEYSEQ_SIZE; ++i) {
+            int code;
             if ( (code = keySeq[i]) == 0)
                   break;
             if (i)
-                  s += keySepar;
+                  s += ",";
             if (code & Qt::KeypadModifier) {
                   s += numPadPrefix;
                   code &= ~Qt::KeypadModifier;
@@ -576,17 +582,18 @@ QKeySequence Shortcut::keySeqFromString(const QString& str, QKeySequence::Sequen
       for (i = 0; i < KEYSEQ_SIZE; ++i)
             code[i] = 0;
 
-      QStringList strList = str.split(keySepar, QString::SkipEmptyParts, Qt::CaseSensitive);
+      QStringList strList = str.split(",", QString::SkipEmptyParts, Qt::CaseSensitive);
 
       i = 0;
-      foreach (QString keyStr, strList) {
+      for (const QString& s : strList) {
+            QString keyStr = s.trimmed();
             if( keyStr.startsWith(numPadPrefix, Qt::CaseInsensitive) ) {
                   code[i] += Qt::KeypadModifier;
                   keyStr.remove(0, NUMPADPREFIX_SIZE);
                   }
             QKeySequence seq = QKeySequence::fromString(keyStr, fmt);
             code[i] += seq[0];
-            if(++i >= KEYSEQ_SIZE)
+            if (++i >= KEYSEQ_SIZE)
                   break;
             }
       QKeySequence keySeq(code[0], code[1], code[2], code[3]);

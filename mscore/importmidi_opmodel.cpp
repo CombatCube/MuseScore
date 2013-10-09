@@ -27,9 +27,17 @@ struct Controller {
       Node *quintuplets = nullptr;
       Node *septuplets = nullptr;
       Node *nonuplets = nullptr;
+      Node *multipleVoices = nullptr;
+      Node *splitDrums = nullptr;
+      Node *showStaffBracket = nullptr;
+      Node *pickupMeasure = nullptr;
+      Node *clef = nullptr;
 
       int trackCount = 0;
-      bool updateNodeDependencies(Node *node, bool force_update);
+      bool isDrumTrack = false;
+      bool allTracksSelected = true;
+
+      bool updateNodeDependencies(Node *node, bool forceUpdate);
       };
 
 OperationsModel::OperationsModel()
@@ -47,7 +55,7 @@ OperationsModel::OperationsModel()
       quantValue->values.push_back("Quarter");
       quantValue->values.push_back("Eighth");
       quantValue->values.push_back("16th");
-      quantValue->values.push_back("32th");
+      quantValue->values.push_back("32nd");
       quantValue->values.push_back("64th");
       quantValue->values.push_back("128th");
       quantValue->parent = root.get();
@@ -62,16 +70,6 @@ OperationsModel::OperationsModel()
       reduceToShorter->parent = quantValue;
       quantValue->children.push_back(std::unique_ptr<Node>(reduceToShorter));
 
-
-//      Node *humanPerformance = new Node;
-//      humanPerformance->name = "Human performance";
-//      humanPerformance->oper.type = MidiOperation::Type::QUANT_HUMAN;
-//      humanPerformance->oper.value = Quantization().humanPerformance;
-//      humanPerformance->parent = quantValue;
-//      quantValue->children.push_back(std::unique_ptr<Node>(humanPerformance));
-//      controller->quantHuman = humanPerformance;
-
-
       Node *useDots = new Node;
       useDots->name = "Use dots";
       useDots->oper.type = MidiOperation::Type::USE_DOTS;
@@ -85,6 +83,7 @@ OperationsModel::OperationsModel()
       useMultipleVoices->oper.value = TrackOperations().useMultipleVoices;
       useMultipleVoices->parent = root.get();
       root->children.push_back(std::unique_ptr<Node>(useMultipleVoices));
+      controller->multipleVoices = useMultipleVoices;
 
 
       // ------------- tuplets --------------
@@ -153,16 +152,55 @@ OperationsModel::OperationsModel()
 
       // ------------------------------------
 
+      Node *pickupMeasure = new Node;
+      pickupMeasure->name = "Recognize pickup measure";
+      pickupMeasure->oper.type = MidiOperation::Type::PICKUP_MEASURE;
+      pickupMeasure->oper.value = TrackOperations().pickupMeasure;
+      pickupMeasure->parent = root.get();
+      root->children.push_back(std::unique_ptr<Node>(pickupMeasure));
+      controller->pickupMeasure = pickupMeasure;
+
+
+      Node *swing = new Node;
+      swing->name = "Detect swing";
+      swing->oper.type = MidiOperation::Type::SWING;
+      swing->oper.value = (int)TrackOperations().swing;
+      swing->values.push_back("None (1:1)");
+      swing->values.push_back("Swing (2:1)");
+      swing->values.push_back("Shuffle (3:1)");
+      swing->parent = root.get();
+      root->children.push_back(std::unique_ptr<Node>(swing));
+
+
       Node *changeClef = new Node;
-      changeClef->name = "Clef may change along the score";
+      changeClef->name = "Allow clef changes within a staff";
       changeClef->oper.type = MidiOperation::Type::CHANGE_CLEF;
       changeClef->oper.value = TrackOperations().changeClef;
       changeClef->parent = root.get();
       root->children.push_back(std::unique_ptr<Node>(changeClef));
+      controller->clef = changeClef;
+
+
+      Node *splitDrums = new Node;
+      splitDrums->name = "Split drum set";
+      splitDrums->oper.type = MidiOperation::Type::SPLIT_DRUMS;
+      splitDrums->oper.value = TrackOperations().drums.doSplit;;
+      splitDrums->parent = root.get();
+      root->children.push_back(std::unique_ptr<Node>(splitDrums));
+      controller->splitDrums = splitDrums;
+
+
+      Node *showStaffBracket = new Node;
+      showStaffBracket->name = "Show staff bracket";
+      showStaffBracket->oper.type = MidiOperation::Type::SHOW_STAFF_BRACKET;
+      showStaffBracket->oper.value = TrackOperations().drums.showStaffBracket;
+      showStaffBracket->parent = splitDrums;
+      splitDrums->children.push_back(std::unique_ptr<Node>(showStaffBracket));
+      controller->showStaffBracket = showStaffBracket;
 
 
       Node *doLHRH = new Node;
-      doLHRH->name = "LH/RH separation";
+      doLHRH->name = "Left/right hand separation";
       doLHRH->oper.type = MidiOperation::Type::DO_LHRH_SEPARATION;
       doLHRH->oper.value = LHRHSeparation().doIt;
       doLHRH->parent = root.get();
@@ -242,53 +280,53 @@ QModelIndex OperationsModel::index(int row, int column, const QModelIndex &paren
       {
       if (!root || row < 0 || column < 0 || column >= OperationCol::COL_COUNT)
             return QModelIndex();
-      Node *parent_node = nodeFromIndex(parent);
-      if (!parent_node)
+      const Node *parentNode = nodeFromIndex(parent);
+      if (!parentNode)
             return QModelIndex();
-      if (parent_node->children.empty() || row >= (int)parent_node->children.size())
+      if (parentNode->children.empty() || row >= (int)parentNode->children.size())
             return QModelIndex();
                   // find new row in connection with invisible items
       int shift = 0;
       for (int i = 0; i <= row + shift; ++i) {
-            if (i >= (int)parent_node->children.size())
+            if (i >= (int)parentNode->children.size())
                   return QModelIndex();
-            if (!parent_node->children.at(i)->visible)
+            if (!parentNode->children.at(i)->visible)
                   ++shift;
             }
-      Node *child_node = parent_node->children.at(row + shift).get();
-      if (!child_node || !child_node->visible)
+      Node *childNode = parentNode->children.at(row + shift).get();
+      if (!childNode || !childNode->visible)
             return QModelIndex();
-      return createIndex(row, column, child_node);
+      return createIndex(row, column, childNode);
       }
 
 QModelIndex OperationsModel::parent(const QModelIndex &child) const
       {
-      Node *node = nodeFromIndex(child);
+      const Node *node = nodeFromIndex(child);
       if (!node)
-          return QModelIndex();
-      Node *parent_node = node->parent;
-      if (!parent_node)
-          return QModelIndex();
-      Node *grandparent_node = parent_node->parent;
-      if (!grandparent_node)
-          return QModelIndex();
-      auto &v = grandparent_node->children;
-      auto iter = std::find_if(v.begin(), v.end(),
-          [parent_node](std::unique_ptr<Node> &el){ return el.get() == parent_node; });
-      int row = (iter == v.end()) ? -1 : iter - v.begin();
-      return createIndex(row, 0, parent_node);
+            return QModelIndex();
+      Node *parentNode = node->parent;
+      if (!parentNode)
+            return QModelIndex();
+      const Node *grandparentNode = parentNode->parent;
+      if (!grandparentNode)
+            return QModelIndex();
+      const auto &children = grandparentNode->children;
+      const auto iter = std::find_if(children.begin(), children.end(),
+               [parentNode](const std::unique_ptr<Node> &el){ return el.get() == parentNode; });
+      const int row = (iter == children.end()) ? -1 : iter - children.begin();
+      return createIndex(row, 0, parentNode);
       }
 
 int OperationsModel::rowCount(const QModelIndex &parent) const
       {
       if (parent.column() >= OperationCol::COL_COUNT)
             return 0;
-      Node *parent_node = nodeFromIndex(parent);
-      if (!parent_node)
+      const Node *parentNode = nodeFromIndex(parent);
+      if (!parentNode)
             return 0;
                   // take only visible nodes into account
       size_t counter = 0;
-      for (const auto &p: parent_node->children)
+      for (const auto &p: parentNode->children)
             if (p->visible)
                   ++counter;
       return counter;
@@ -304,7 +342,7 @@ int OperationsModel::columnCount(const QModelIndex &parent) const
 
 QVariant OperationsModel::data(const QModelIndex &index, int role) const
       {
-      Node *node = nodeFromIndex(index);
+      const Node *node = nodeFromIndex(index);
       if (!node)
             return QVariant();
       switch (role) {
@@ -380,7 +418,7 @@ QVariant OperationsModel::headerData(int section, Qt::Orientation orientation, i
 
 Qt::ItemFlags OperationsModel::flags(const QModelIndex &index) const
       {
-      Node *node = nodeFromIndex(index);
+      const Node *node = nodeFromIndex(index);
       if (!node)
             return Qt::ItemFlags();
       Qt::ItemFlags flags = Qt::ItemFlags(Qt::ItemIsEnabled);
@@ -425,7 +463,9 @@ void setNodeOperations(Node *node, const DefinedTrackOperations &opers)
             node->oper.value = QVariant();
       else {
             switch (node->oper.type) {
-                  case MidiOperation::Type::DO_IMPORT: break;
+                  case MidiOperation::Type::DO_IMPORT:
+                  case MidiOperation::Type::LYRIC_TRACK_INDEX:
+                        break;
 
                   case MidiOperation::Type::QUANT_VALUE:
                         node->oper.value = (int)opers.opers.quantize.value; break;
@@ -445,6 +485,9 @@ void setNodeOperations(Node *node, const DefinedTrackOperations &opers)
 
                   case MidiOperation::Type::USE_DOTS:
                         node->oper.value = opers.opers.useDots; break;
+
+                  case MidiOperation::Type::SWING:
+                        node->oper.value = (int)opers.opers.swing; break;
 
                   case MidiOperation::Type::USE_MULTIPLE_VOICES:
                         node->oper.value = opers.opers.useMultipleVoices; break;
@@ -466,15 +509,26 @@ void setNodeOperations(Node *node, const DefinedTrackOperations &opers)
 
                   case MidiOperation::Type::CHANGE_CLEF:
                         node->oper.value = opers.opers.changeClef; break;
+
+                  case MidiOperation::Type::PICKUP_MEASURE:
+                        node->oper.value = opers.opers.pickupMeasure; break;
+
+                  case MidiOperation::Type::SPLIT_DRUMS:
+                        node->oper.value = opers.opers.drums.doSplit; break;
+                  case MidiOperation::Type::SHOW_STAFF_BRACKET:
+                        node->oper.value = opers.opers.drums.showStaffBracket; break;
                   }
             }
       for (const auto &nodePtr: node->children)
             setNodeOperations(nodePtr.get(), opers);
       }
 
-void OperationsModel::setTrackData(const QString &trackLabel, const DefinedTrackOperations &opers)
+void OperationsModel::setTrackData(const QString &trackLabel,
+                                   const DefinedTrackOperations &opers)
       {
       this->trackLabel = trackLabel;
+      controller->isDrumTrack = opers.isDrumTrack;
+      controller->allTracksSelected = opers.allTracksSelected;
                   // set new operations values
       beginResetModel();
       for (const auto &nodePtr: root->children)
@@ -502,13 +556,13 @@ Node* OperationsModel::nodeFromIndex(const QModelIndex &index) const
 
 // Different controller actions, i.e. conditional visibility of node
 
-bool Controller::updateNodeDependencies(Node *node, bool force_update)
+bool Controller::updateNodeDependencies(Node *node, bool forceUpdate)
       {
       bool result = false;
-      if (!node && !force_update)
+      if (!node && !forceUpdate)
             return result;
-      if (LHRHMethod && (force_update || node == LHRHMethod)) {
-            auto value = (MidiOperation::LHRHMethod)LHRHMethod->oper.value.toInt();
+      if (LHRHMethod && (forceUpdate || node == LHRHMethod)) {
+            const auto value = (MidiOperation::LHRHMethod)LHRHMethod->oper.value.toInt();
             switch (value) {
                   case MidiOperation::LHRHMethod::HAND_WIDTH:
                         if (LHRHPitchOctave)
@@ -526,14 +580,14 @@ bool Controller::updateNodeDependencies(Node *node, bool force_update)
                         break;
                   }
             }
-      if (LHRHdoIt && (force_update || node == LHRHdoIt)) {
-            auto value = LHRHdoIt->oper.value.toBool();
+      if (LHRHdoIt && (forceUpdate || node == LHRHdoIt)) {
+            const auto value = LHRHdoIt->oper.value.toBool();
             if (LHRHMethod)
                   LHRHMethod->visible = value;
             result = true;
             }
-      if (searchTuplets && (force_update || node == searchTuplets)) {
-            auto value = searchTuplets->oper.value.toBool();
+      if (searchTuplets && (forceUpdate || node == searchTuplets)) {
+            const auto value = searchTuplets->oper.value.toBool();
             if (duplets)
                   duplets->visible = value;
             if (triplets)
@@ -548,14 +602,25 @@ bool Controller::updateNodeDependencies(Node *node, bool force_update)
                   nonuplets->visible = value;
             result = true;
             }
-
-//      if (quantHuman) {
-//            bool oneTrack = (trackCount == 1);
-//            if (oneTrack != quantHuman->visible) {
-//                  quantHuman->visible = oneTrack;
-//                  result = true;
-//                  }
-//            }
+      if (splitDrums && (forceUpdate || node == splitDrums)) {
+            const auto value = splitDrums->oper.value.toBool();
+            if (showStaffBracket)
+                  showStaffBracket->visible = value;
+            result = true;
+            }
+      if (forceUpdate) {
+            if (LHRHdoIt)
+                  LHRHdoIt->visible = !isDrumTrack;
+            if (splitDrums)
+                  splitDrums->visible = isDrumTrack;
+            if (multipleVoices)
+                  multipleVoices->visible = !isDrumTrack;
+            if (clef)
+                  clef->visible = !isDrumTrack;
+            if (pickupMeasure)
+                  pickupMeasure->visible = allTracksSelected;
+            result = true;
+            }
 
       return result;
       }

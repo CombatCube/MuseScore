@@ -56,10 +56,13 @@ PlayPanel::PlayPanel(QWidget* parent)
       rewindButton->setDefaultAction(getAction("rewind"));
       metronomeButton->setDefaultAction(getAction("metronome"));
       loopButton->setDefaultAction(getAction("loop"));
+      loopInButton->setDefaultAction(getAction("loop-in"));
+      loopOutButton->setDefaultAction(getAction("loop-out"));
 
       connect(volumeSlider, SIGNAL(valueChanged(double,int)), SLOT(volumeChanged(double,int)));
       connect(posSlider,    SIGNAL(sliderMoved(int)),         SLOT(setPos(int)));
       connect(tempoSlider,  SIGNAL(valueChanged(double,int)), SLOT(relTempoChanged(double,int)));
+      connect(relTempoBox,     SIGNAL(editingFinished()),  SLOT(relTempoChanged()));
       connect(seq,          SIGNAL(heartBeat(int,int,int)),   SLOT(heartBeat(int,int,int)));
       }
 
@@ -86,6 +89,17 @@ void PlayPanel::relTempoChanged(double d, int)
 
       setTempo(seq->curTempo() * relTempo);
       setRelTempo(relTempo);
+      }
+
+//---------------------------------------------------------
+//   relTempoChanged
+//---------------------------------------------------------
+
+void PlayPanel::relTempoChanged()
+      {
+      double v = relTempoBox->value();
+      tempoSlider->setValue(v);
+      emit relTempoChanged(v * .01);
       }
 
 //---------------------------------------------------------
@@ -174,7 +188,8 @@ void PlayPanel::setTempo(double val)
 void PlayPanel::setRelTempo(qreal val)
       {
       val *= 100;
-      relTempo->setText(QString("%1 %").arg(val, 3, 'f', 0));
+      //relTempo->setText(QString("%1 %").arg(val, 3, 'f', 0));
+      relTempoBox->setValue(val);
       tempoSlider->setValue(val);
       }
 
