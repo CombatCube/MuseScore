@@ -669,27 +669,37 @@ void SLine::layout()
 
             Measure* m = system->firstMeasure();
             Segment* mseg = m->first(Segment::Type::ChordRest);
+            Segment* kseg = m->first(Segment::Type::KeySig);
+
 
             if (sysIdx1 == sysIdx2) {
                   // single segment
                   seg->setSpannerSegmentType(SpannerSegmentType::SINGLE);
-                  qreal len = p2.x() - p1.x();
+                  qreal x1 = p1.x();
+                  if (seg->type() == LineSegment::Type::VOLTA_SEGMENT && (Measure*)(startElement()) == m)
+                        x1 = m->pos().x() + kseg->x();
+                  qreal len = p2.x() - x1;
                   if (anchor() == Anchor::SEGMENT)
                         len = qMax(3 * spatium(), len);
-                  seg->setPos(p1);
+                  seg->setPos(QPointF(x1, p1.y()));
                   seg->setPos2(QPointF(len, p2.y() - p1.y()));
                   }
             else if (i == sysIdx1) {
                   // start segment
                   seg->setSpannerSegmentType(SpannerSegmentType::BEGIN);
-                  seg->setPos(p1);
+                  qreal x1 = p1.x();
+                  if (seg->type() == LineSegment::Type::VOLTA_SEGMENT && (Measure*)(startElement()) == m)
+                        x1 = m->pos().x() + kseg->x();
                   qreal x2 = system->bbox().right();
-                  seg->setPos2(QPointF(x2 - p1.x(), 0.0));
+                  seg->setPos(QPointF(x1, p1.y()));
+                  seg->setPos2(QPointF(x2 - x1, 0.0));
                   }
             else if (i > 0 && i != sysIdx2) {
                   // middle segment
                   seg->setSpannerSegmentType(SpannerSegmentType::MIDDLE);
                   qreal x1 = (mseg ? mseg->pos().x() : 0) + m->pos().x();
+                  if (seg->type() == LineSegment::Type::PEDAL_SEGMENT || seg->type() == LineSegment::Type::VOLTA_SEGMENT)
+                        x1 = kseg->pos().x() + m->pos().x();
                   qreal x2 = system->bbox().right();
                   seg->setPos(QPointF(x1, p1.y()));
                   seg->setPos2(QPointF(x2 - x1, 0.0));
@@ -697,6 +707,8 @@ void SLine::layout()
             else if (i == sysIdx2) {
                   // end segment
                   qreal x1 = (mseg ? mseg->pos().x() : 0) + m->pos().x();
+                  if (seg->type() == LineSegment::Type::PEDAL_SEGMENT || seg->type() == LineSegment::Type::VOLTA_SEGMENT)
+                        x1 = kseg->pos().x() + m->pos().x();
                   qreal len = p2.x() - x1;
                   if (anchor() == Anchor::SEGMENT)
                         len = qMax(3 * spatium(), len);
