@@ -462,6 +462,38 @@ void Measure::layout(qreal width)
             if (sl)
                   sl->setMag(score()->staff(staffIdx)->mag());
             staves[staffIdx]->lines->layout();
+            SysStaff* sysSt = system()->staff(staffIdx);
+            staves[staffIdx]->setMeasureNotesBBox(sysSt->bbox());
+            }
+      int tracks = score()->nstaves() * VOICES;
+      static const Segment::Type st { Segment::Type::ChordRest };
+      for (int track = 0; track < tracks; ++track) {
+            for (Segment* s = first(st); s; s = s->next(st)) {
+                  ChordRest* cr = s->cr(track);
+                  if (!cr)
+                        continue;
+                  // Find lowest and highest elements in MStaff
+                  MStaff* mst = mstaff(cr->staffIdx());
+                  QRectF mstBBox = mst->measureNotesBBox();
+                  qreal notesTop = mstBBox.top();
+                  qreal notesBottom = mstBBox.bottom();
+                  qreal crTop = cr->bbox().top();
+                  qreal crBottom = cr->bbox().bottom();
+                  notesTop = qMin(notesTop, crTop);
+                  notesBottom = qMax(notesBottom, crBottom);
+                  mst->setMeasureNotesBBox(QRectF(mstBBox.left(), notesTop, mstBBox.right()-mstBBox.left(), notesBottom-notesTop));
+                  }
+            }
+      for (int staffIdx = 0; staffIdx < nstaves; ++staffIdx) {
+            SysStaff* sysSt = system()->staff(staffIdx);
+            qreal notesBottom = sysSt->y(); // TODO: Check if this is a reasonable assumption
+            qreal notesTop = 0.0;
+            foreach (MeasureBase* m, system()->measures()) {
+                  notesBottom = qMax(notesBottom, m->notesBottom(staffIdx));
+                  notesTop = qMin(notesTop, m->notesTop(staffIdx));
+                  }
+            sysSt->setNotesBottom(notesBottom);
+            sysSt->setNotesTop(notesTop);
             }
 
       // height of boundingRect will be set in system->layout2()
@@ -2897,6 +2929,25 @@ qreal Measure::distanceUp(int i) const
       }
 
 //---------------------------------------------------------
+//   notesTop
+//---------------------------------------------------------
+
+qreal Measure::notesTop(int i) const
+      {
+      return staves[i]->measureNotesBBox().top();
+      }
+
+//---------------------------------------------------------
+//   notesBottom
+//---------------------------------------------------------
+
+qreal Measure::notesBottom(int i) const
+      {
+      return staves[i]->measureNotesBBox().bottom();
+      }
+
+
+//---------------------------------------------------------
 //   isEmpty
 //---------------------------------------------------------
 
@@ -3161,6 +3212,7 @@ void Measure::layoutX(qreal stretch)
             qreal harmonyWidth    = 0.0;
             qreal stretchDistance = 0.0;
             Segment::Type pt      = pSeg ? pSeg->segmentType() : Segment::Type::BarLine;
+
 #if 0
             qreal firstHarmonyDistance = 0.0;
 #endif
@@ -3295,6 +3347,7 @@ void Measure::layoutX(qreal stretch)
                                     if (!l || l->isEmpty())
                                           continue;
                                     lyrics = l;
+                                    l->layout();
                                     QRectF b(l->bbox().translated(l->pos()));
                                     llw = qMax(llw, -(b.left()+lx+cx));
                                     rrw = qMax(rrw, b.right()+rx+cx);

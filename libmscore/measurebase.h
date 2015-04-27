@@ -111,6 +111,8 @@ class MeasureBase : public Element {
 
       virtual qreal distanceUp(int) const       { return 0.0; }
       virtual qreal distanceDown(int) const     { return 0.0; }
+      virtual qreal notesTop(int) const       { return 0.0; }
+      virtual qreal notesBottom(int) const     { return 0.0; }
       virtual qreal userDistanceUp(int) const   { return .0;  }
       virtual qreal userDistanceDown(int) const { return .0;  }
 

@@ -50,6 +50,9 @@ class RepeatMeasure;
 struct MStaff {
       qreal distanceUp;
       qreal distanceDown;
+
+      QRectF _measureNotesBBox;
+
       Text* _noText;          ///< Measure number text object
       StaffLines*  lines;
       Spacer* _vspacerUp;
@@ -71,6 +74,9 @@ struct MStaff {
       void setTrack(int);
       Text* noText() const         { return _noText;     }
       void setNoText(Text* t)      { _noText = t;        }
+
+      QRectF measureNotesBBox() const           { return _measureNotesBBox;  }
+      void setMeasureNotesBBox(QRectF bb)       {_measureNotesBBox = bb;     }
       };
 
 //---------------------------------------------------------
@@ -195,6 +201,9 @@ class Measure : public MeasureBase {
       void setNoOffset(int n)              { _noOffset = n;       }
       virtual qreal distanceUp(int i) const;
       virtual qreal distanceDown(int i) const;
+
+      virtual qreal notesTop(int i) const;
+      virtual qreal notesBottom(int i) const;
 
       qreal minWidth1() const;
       qreal minWidth2() const;
