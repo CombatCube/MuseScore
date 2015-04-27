@@ -48,6 +48,8 @@ class SysStaff {
       qreal _distanceDown;    ///< distance to next staff
       bool _show;             ///< derived from Staff or false if empty
                               ///< staff is hidden
+      qreal _notesBottom;     ///< lowest y position of element in sysstaff
+      qreal _notesTop;        ///< highest y position of element in sysstaff
    public:
       int idx;
       QList<InstrumentName*> instrumentNames;
@@ -66,6 +68,11 @@ class SysStaff {
 
       bool show() const             { return _show; }
       void setShow(bool v)          { _show = v; }
+
+      qreal notesBottom() const     { return _notesBottom;  }
+      void setNotesBottom(qreal y) { _notesBottom = y;     }
+      qreal notesTop() const        { return _notesTop; }
+      void setNotesTop(qreal y)    { _notesTop = y;    }
 
       SysStaff();
       ~SysStaff();
@@ -97,6 +104,8 @@ class System : public Element {
       bool _vbox;             ///< contains only one VBox in ml
       bool _sameLine;
       bool _addStretch;
+
+
 
       void setDistanceUp(int n, qreal v)   { _staves[n]->setDistanceUp(v); }
       void setDistanceDown(int n, qreal v) { _staves[n]->setDistanceDown(v); }

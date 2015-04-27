@@ -13,6 +13,7 @@
 #include "lyrics.h"
 
 #include "chord.h"
+#include "measure.h"
 #include "score.h"
 #include "sym.h"
 #include "system.h"
@@ -291,11 +292,14 @@ void Lyrics::layout1()
           return;
 
       ChordRest* cr = chordRest();
+      Measure* m = cr->measure();
+      SysStaff* sysSt = m->system()->staff(cr->staffIdx());
       const QList<Lyrics*>* ll = &(cr->lyricsList());
 
       qreal lh = lineSpacing() * score()->styleD(StyleIdx::lyricsLineHeight);
       int line = ll->indexOf(this);
-      qreal y  = lh * line + point(score()->styleS(StyleIdx::lyricsDistance));
+//      qreal y  = lh * line + point(score()->styleS(StyleIdx::lyricsDistance));
+      qreal y  = lh * line + sysSt->notesBottom() - sysSt->y() + 0.5 * spatium();
       qreal x  = 0.0;
 
       //
