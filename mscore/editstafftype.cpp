@@ -136,6 +136,7 @@ EditStaffType::EditStaffType(QWidget* parent, Staff* st)
       connect(stemBelowRadio,       SIGNAL(toggled(bool)),              SLOT(updatePreview()));
       connect(minimShortRadio,      SIGNAL(toggled(bool)),              SLOT(tabMinimShortToggled(bool)));
       connect(minimSlashedRadio,    SIGNAL(toggled(bool)),              SLOT(updatePreview()));
+      connect(minimCircledRadio,    SIGNAL(toggled(bool)),              SLOT(updatePreview()));
       connect(showRests,            SIGNAL(toggled(bool)),              SLOT(updatePreview()));
       connect(durFontName,          SIGNAL(currentIndexChanged(int)),   SLOT(durFontNameChanged(int)));
       connect(durFontSize,          SIGNAL(valueChanged(double)),       SLOT(updatePreview()));
@@ -246,6 +247,7 @@ void EditStaffType::setValues()
                   minimNoneRadio->setChecked(minimStyle == TablatureMinimStyle::NONE);
                   minimShortRadio->setChecked(minimStyle == TablatureMinimStyle::SHORTER);
                   minimSlashedRadio->setChecked(minimStyle == TablatureMinimStyle::SLASHED);
+                  minimCircledRadio->setChecked(minimStyle == TablatureMinimStyle::CIRCLED);
                   TablatureSymbolRepeat symRepeat = staffType.symRepeat();
                   valuesRepeatNever->setChecked(symRepeat == TablatureSymbolRepeat::NEVER);
                   valuesRepeatSystem->setChecked(symRepeat == TablatureSymbolRepeat::SYSTEM);
@@ -398,7 +400,9 @@ void EditStaffType::setFromDlg()
       staffType.setLinesThrough(linesThroughRadio->isChecked());
       staffType.setShowBackTied(showBackTied->isChecked());
       staffType.setMinimStyle(minimNoneRadio->isChecked() ? TablatureMinimStyle::NONE :
-            (minimShortRadio->isChecked() ? TablatureMinimStyle::SHORTER : TablatureMinimStyle::SLASHED));
+            (minimShortRadio->isChecked() ? TablatureMinimStyle::SHORTER :
+                minimSlashedRadio->isChecked() ? TablatureMinimStyle::SLASHED :
+                    TablatureMinimStyle::CIRCLED));
       staffType.setSymbolRepeat(valuesRepeatNever->isChecked() ? TablatureSymbolRepeat::NEVER :
             (valuesRepeatSystem->isChecked() ? TablatureSymbolRepeat::SYSTEM :
                   valuesRepeatMeasure->isChecked() ? TablatureSymbolRepeat::MEASURE : TablatureSymbolRepeat::ALWAYS));
@@ -459,6 +463,7 @@ void EditStaffType::blockSignals(bool block)
       stemThroughRadio->blockSignals(block);
       minimShortRadio->blockSignals(block);
       minimSlashedRadio->blockSignals(block);
+      minimCircledRadio->blockSignals(block);
       showRests->blockSignals(block);
 
       showLedgerLinesPercussion->blockSignals(block);
@@ -485,6 +490,7 @@ void EditStaffType::tabStemsCompatibility(bool checked)
       minimNoneRadio->setEnabled(checked);
       minimShortRadio->setEnabled(checked && !stemThroughRadio->isChecked());
       minimSlashedRadio->setEnabled(checked);
+      minimCircledRadio->setEnabled(checked);
       }
 
 //---------------------------------------------------------
@@ -520,6 +526,7 @@ void EditStaffType::tabStemThroughCompatibility(bool checked)
             if(minimShortRadio->isChecked()) {
                   minimShortRadio->setChecked(false);
                   minimSlashedRadio->setChecked(true);
+                  minimCircledRadio->setChecked(false);
                   }
             }
       // disable / enable "minim short" and "stems above/below" according "stems through" is checked / unchecked

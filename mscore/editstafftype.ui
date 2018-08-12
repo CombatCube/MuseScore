@@ -1203,8 +1203,21 @@
                      <property name="enabled">
                       <bool>true</bool>
                      </property>
+                     <property name="minimumSize">
+                      <size>
+                       <width>120</width>
+                       <height>0</height>
+                      </size>
+                     </property>
                      <property name="text">
                       <string>As slashed stem</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QRadioButton" name="minimCircledRadio">
+                     <property name="text">
+                      <string>As circled frets</string>
                      </property>
                     </widget>
                    </item>
@@ -1484,7 +1497,7 @@
  </connections>
  <buttongroups>
   <buttongroup name="NumLettersButtGroup"/>
-  <buttongroup name="OnAboveLinesButtGroup"/>
   <buttongroup name="ContinuousBrokenLinesbuttGroup"/>
+  <buttongroup name="OnAboveLinesButtGroup"/>
  </buttongroups>
 </ui>

@@ -145,6 +145,7 @@ void Stem::draw(QPainter* painter) const
       StaffType* stt = st ? st->staffType(chord()->tick()) : 0;
       bool useTab    = stt && stt->isTabStaff();
 
+      painter->setBrush(Qt::NoBrush);
       painter->setPen(QPen(curColor(), _lineWidth, Qt::SolidLine, Qt::RoundCap));
       painter->drawLine(line);
 
@@ -155,6 +156,19 @@ void Stem::draw(QPainter* painter) const
       qreal sp = spatium();
       bool _up = up();
 
+      // enclosure around frets
+      if (stt->minimStyle() == TablatureMinimStyle::CIRCLED) {
+            qreal d  = spatium() * 0.7;
+            QRectF rect(line.x1() - chord()->bbox().width()/2 - d, line.y1(),
+                       chord()->bbox().width() + 2*d, ((chord()->downString() - chord()->upString() + 1) * stt->lineDistance().val()  * spatium() + d) * (_up ? 1 : -1)
+                       );
+            if (chord()->durationType().type() == TDuration::DurationType::V_HALF || chord()->durationType().type() == TDuration::DurationType::V_WHOLE) {
+                  painter->drawRoundedRect(rect.normalized(), spatium() * 1.25, spatium() * 1.25);
+                  }
+            else if (chord()->durationType().type() == TDuration::DurationType::V_BREVE) {
+                  painter->drawRect(rect.normalized());
+                  }
+            }
       // slashed half note stem
       if (chord()->durationType().type() == TDuration::DurationType::V_HALF && stt->minimStyle() == TablatureMinimStyle::SLASHED) {
             // position slashes onto stem
